@@ -161,6 +161,79 @@
             "type": "string",
             "pattern": "^[A-Z0-9_]{3,64}$"
         },
+        "Base64Url": {
+            "title": "Base64URL (no padding)",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "minLength": 1,
+            "maxLength": 4096
+        },
+        "DigestAlg": {
+            "title": "Digest algorithm",
+            "type": "string",
+            "enum": [
+                "sha-256"
+            ]
+        },
+        "Digest": {
+            "title": "Digest",
+            "description": "Algorithm + digest bytes. Bytes are base64url (no padding). For sha-256 this is typically 43 chars; schema allows 43..44 to tolerate encoder variance.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "alg",
+                "b64"
+            ],
+            "properties": {
+                "alg": {
+                    "$ref": "#/$defs/DigestAlg"
+                },
+                "b64": {
+                    "description": "Digest bytes encoded as base64url (no padding).",
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]+$",
+                    "minLength": 43,
+                    "maxLength": 44
+                }
+            }
+        },
+        "EventID": {
+            "title": "EventID",
+            "description": "Digest identifying an event (domain-separated hash over canonical bytes of v).",
+            "$ref": "#/$defs/Digest"
+        },
+        "ContentRef": {
+            "title": "ContentRef",
+            "description": "Reference to content-addressed external bytes/documents. Prefer this over embedding large blobs in events.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "digest"
+            ],
+            "properties": {
+                "digest": {
+                    "$ref": "#/$defs/Digest"
+                },
+                "size_bytes": {
+                    "description": "Optional size hint; does not affect hashing.",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "media_type": {
+                    "description": "Optional IANA media type hint (e.g., application/json).",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9!#$&^_.+-]+\\/[A-Za-z0-9!#$&^_.+-]+$"
+                }
+            }
+        },
+        "ProfileID": {
+            "title": "ProfileID",
+            "description": "Identifier of the canonicalization profile used (stable, URL-safe).",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16,128}$"
+        },
         "HygieneReport": {
             "title": "HygieneReport",
             "type": "object",
@@ -190,80 +263,10 @@
                     }
                 },
                 "profile_id": {
-                    "description": "Hash identifier of the canonicalization profile + numeric rules used.",
-                    "type": "string",
-                    "minLength": 16,
-                    "maxLength": 128,
-                    "pattern": "^[a-zA-Z0-9_-]+$"
+                    "description": "Identifier of the canonicalization profile + numeric rules used.",
+                    "$ref": "#/$defs/ProfileID"
                 }
             }
-        },
-        "Base64Url": {
-            "title": "Base64URL (no padding)",
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]+$",
-            "minLength": 1,
-            "maxLength": 4096
-        },
-        "DigestAlg": {
-            "title": "Digest algorithm",
-            "type": "string",
-            "enum": [
-                "sha-256"
-            ]
-        },
-        "Digest": {
-            "title": "Digest",
-            "description": "Algorithm + digest bytes. Bytes are base64url (no padding). For sha-256 this is typically 43 chars (no padding); schema allows 43..44 to tolerate encoder variance.",
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-                "alg",
-                "b64"
-            ],
-            "properties": {
-                "alg": {
-                    "$ref": "#/$defs/DigestAlg"
-                },
-                "b64": {
-                    "description": "Digest bytes encoded as base64url (no padding).",
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9_-]+$",
-                    "minLength": 43,
-                    "maxLength": 44
-                }
-            }
-        },
-        "ContentRef": {
-            "title": "ContentRef",
-            "description": "Reference to content-addressed external bytes/documents. Prefer this over embedding large blobs in receipts.",
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-                "digest"
-            ],
-            "properties": {
-                "digest": {
-                    "$ref": "#/$defs/Digest"
-                },
-                "size_bytes": {
-                    "description": "Optional size hint; does not affect hashing.",
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "media_type": {
-                    "description": "Optional IANA media type hint (e.g., application/json).",
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                }
-            }
-        },
-        "ProfileID": {
-            "title": "ProfileID",
-            "description": "Identifier of the canonicalization profile used (stable, URL-safe).",
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]{16,128}$"
         },
         "Timestamp": {
             "title": "Timestamp (UTC RFC 3339)",
