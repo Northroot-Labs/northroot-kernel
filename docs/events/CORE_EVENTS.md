@@ -102,8 +102,10 @@ All events share a common envelope:
 - `principal_id`: PrincipalID
 - `canonical_profile_id`: ProfileID
 - `payload_digest`: Digest (digest of canonical bytes of the event payload)
-- `request_id`: optional string (operational correlation only)
-- `context_digest`: optional Digest (opaque, for ecosystem-specific metadata)
+
+Operational metadata (request ids, traces, retries, tags, provider hints, etc.) is explicitly
+out-of-band. Core schemas carry verifiable evidence only; deployments may attach ops metadata
+in transport-specific envelopes that are excluded from canonicalization and hashing.
 
 `event_id` and `payload_digest` may be identical if `event_id` is defined as digest of the
 canonical payload bytes. If both exist, they MUST be consistent per profile rules.
