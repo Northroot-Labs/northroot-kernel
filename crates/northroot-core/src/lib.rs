@@ -14,23 +14,25 @@
 //!
 #![deny(missing_docs)]
 
-/// Event types matching the event schemas.
-pub mod events;
-/// Event ID computation with domain-separated hashing.
-pub mod event_id;
-/// Verification logic and verdict types.
-pub mod verification;
-/// Shared types used across events (Meter, ResourceRef, etc.).
-pub mod shared;
 /// Error types for core operations.
 pub mod errors;
+/// Event ID computation with domain-separated hashing.
+pub mod event_id;
+/// Event types matching the event schemas.
+pub mod events;
+/// Shared types used across events (Meter, ResourceRef, etc.).
+pub mod shared;
+/// Verification logic and verdict types.
+pub mod verification;
 
-pub use events::{
-    AuthorizationEvent, AuthorizationKind, CheckResult, Decision, ExecutionEvent, Outcome,
-    AttestationEvent, CheckpointEvent,
-};
-pub use event_id::{compute_event_id, EventIdError};
-pub use verification::{VerificationVerdict, Verifier};
-pub use shared::{Meter, ResourceRef, IntentAnchors};
 pub use errors::CoreError;
-
+pub use event_id::{compute_event_id, EventIdError};
+pub use events::{
+    AttestationEvent, AuthorizationEvent, AuthorizationKind, CheckResult, CheckpointEvent,
+    Decision, ExecutionEvent, Outcome,
+};
+pub use shared::{IntentAnchors, Meter, ResourceRef};
+pub use verification::{
+    ConversionContext, PriceIndexSnapshot, TokenPrice, TokenType, UnitRate, VerificationVerdict,
+    Verifier,
+};

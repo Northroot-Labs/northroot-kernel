@@ -1,8 +1,44 @@
-use northroot_canonical::{Canonicalizer, Digest, DigestAlg, Quantity, Timestamp};
-use crate::events::{AuthorizationEvent, ExecutionEvent};
+use crate::events::{AttestationEvent, AuthorizationEvent, CheckpointEvent, ExecutionEvent};
 use crate::shared::Meter;
-use std::collections::HashMap;
+use northroot_canonical::{Canonicalizer, Digest, DigestAlg, Quantity, Timestamp};
 use num_bigint::BigInt;
+use serde::Serialize;
+use serde_json::Value;
+use sha2::{Digest as Sha2Digest, Sha256};
+use std::collections::HashMap;
+
+/// Domain separator for price index digest computation: `b"northroot:price-index:v1\0"`.
+const PRICE_INDEX_DOMAIN_SEPARATOR: &[u8] = b"northroot:price-index:v1\0";
+
+/// Computes the digest for a price index snapshot.
+///
+/// Formula: `sha256(domain_separator || canonical_bytes(snapshot))`
+///
+/// The snapshot must be serializable and will be canonicalized before hashing.
+fn compute_price_index_digest(
+    snapshot: &PriceIndexSnapshot,
+    canonicalizer: &Canonicalizer,
+) -> Result<Digest, String> {
+    // Serialize to JSON Value
+    let value: Value = serde_json::to_value(snapshot)
+        .map_err(|e| format!("price index serialization failed: {}", e))?;
+
+    // Canonicalize the JSON value
+    let result = canonicalizer
+        .canonicalize(&value)
+        .map_err(|e| format!("price index canonicalization failed: {}", e))?;
+
+    // Hash: domain_separator || canonical_bytes
+    let mut hasher = Sha256::new();
+    hasher.update(PRICE_INDEX_DOMAIN_SEPARATOR);
+    hasher.update(&result.bytes);
+    let hash_bytes = hasher.finalize();
+
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(hash_bytes);
+    Digest::new(DigestAlg::Sha256, b64)
+        .map_err(|e| format!("digest construction failed: {}", e))
+}
 
 /// Verification verdict: explicit outcome of verification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,7 +54,8 @@ pub enum VerificationVerdict {
 }
 
 /// Token type for price index entries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum TokenType {
     /// Input tokens.
     Input,
@@ -27,7 +64,7 @@ pub enum TokenType {
 }
 
 /// Token price entry for conversion from tokens to USD.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TokenPrice {
     /// Model identifier (e.g., "gpt-4", "claude-3-opus").
     pub model_id: String,
@@ -42,7 +79,7 @@ pub struct TokenPrice {
 }
 
 /// Unit rate entry for conversion from compute/storage units to USD.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct UnitRate {
     /// Unit identifier (e.g., "compute.seconds", "storage.bytes").
     pub unit: String,
@@ -53,7 +90,7 @@ pub struct UnitRate {
 }
 
 /// Price index snapshot for deterministic conversion.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PriceIndexSnapshot {
     /// Timestamp when this snapshot was created.
     pub as_of: Timestamp,
@@ -76,6 +113,19 @@ impl ConversionContext {
     /// Creates a new conversion context from a price index snapshot.
     pub fn new(snapshot: PriceIndexSnapshot) -> Self {
         Self { snapshot }
+    }
+
+    /// Computes the digest of the price index snapshot.
+    ///
+    /// Formula: `sha256(domain_separator || canonical_bytes(snapshot))`
+    ///
+    /// Uses domain separator `b"northroot:price-index:v1\0"` to distinguish
+    /// from event IDs.
+    pub fn compute_snapshot_digest(
+        &self,
+        canonicalizer: &Canonicalizer,
+    ) -> Result<Digest, String> {
+        compute_price_index_digest(&self.snapshot, canonicalizer)
     }
 }
 
@@ -117,25 +167,26 @@ impl Verifier {
                 }
             }
             // Decimal comparison (normalize to same scale)
-            (Quantity::Dec { m: used_m, s: used_s }, Quantity::Dec { m: cap_m, s: cap_s }) => {
-                match self.cmp_dec(used_m, *used_s, cap_m, *cap_s) {
-                    Some(std::cmp::Ordering::Less) | Some(std::cmp::Ordering::Equal) => {
-                        ComparisonResult::WithinBounds
-                    }
-                    Some(std::cmp::Ordering::Greater) => ComparisonResult::ExceedsBounds,
-                    None => ComparisonResult::Invalid,
+            (
+                Quantity::Dec {
+                    m: used_m,
+                    s: used_s,
+                },
+                Quantity::Dec { m: cap_m, s: cap_s },
+            ) => match self.cmp_dec(used_m, *used_s, cap_m, *cap_s) {
+                Some(std::cmp::Ordering::Less) | Some(std::cmp::Ordering::Equal) => {
+                    ComparisonResult::WithinBounds
                 }
-            }
+                Some(std::cmp::Ordering::Greater) => ComparisonResult::ExceedsBounds,
+                None => ComparisonResult::Invalid,
+            },
             // Rational comparison (cross-multiply)
             (
                 Quantity::Rat {
                     n: used_n,
                     d: used_d,
                 },
-                Quantity::Rat {
-                    n: cap_n,
-                    d: cap_d,
-                },
+                Quantity::Rat { n: cap_n, d: cap_d },
             ) => match self.cmp_rat(used_n, used_d, cap_n, cap_d) {
                 Some(std::cmp::Ordering::Less) | Some(std::cmp::Ordering::Equal) => {
                     ComparisonResult::WithinBounds
@@ -167,13 +218,13 @@ impl Verifier {
         }
 
         // Parse signs
-        let (a_sign, a_abs) = if a.starts_with('-') {
-            (-1, &a[1..])
+        let (a_sign, a_abs) = if let Some(stripped) = a.strip_prefix('-') {
+            (-1, stripped)
         } else {
             (1, a)
         };
-        let (b_sign, b_abs) = if b.starts_with('-') {
-            (-1, &b[1..])
+        let (b_sign, b_abs) = if let Some(stripped) = b.strip_prefix('-') {
+            (-1, stripped)
         } else {
             (1, b)
         };
@@ -221,7 +272,12 @@ impl Verifier {
     }
 
     /// Normalizes a decimal mantissa to a target scale.
-    fn normalize_dec_scale(&self, mantissa: &str, from_scale: u32, to_scale: u32) -> Option<String> {
+    fn normalize_dec_scale(
+        &self,
+        mantissa: &str,
+        from_scale: u32,
+        to_scale: u32,
+    ) -> Option<String> {
         if to_scale < from_scale {
             // Would require truncation, which we don't allow
             return None;
@@ -236,11 +292,17 @@ impl Verifier {
     }
 
     /// Compares two rational quantities by cross-multiplying.
-    fn cmp_rat(&self, used_n: &str, used_d: &str, cap_n: &str, cap_d: &str) -> Option<std::cmp::Ordering> {
+    fn cmp_rat(
+        &self,
+        used_n: &str,
+        used_d: &str,
+        cap_n: &str,
+        cap_d: &str,
+    ) -> Option<std::cmp::Ordering> {
         // Cross-multiply: used_n * cap_d vs cap_n * used_d
         // We need to compare used_n * cap_d with cap_n * used_d
         // For simplicity, we'll parse to i128 if possible, otherwise use string arithmetic
-        
+
         // Try parsing as integers first
         if let (Ok(used_n_i), Ok(used_d_i), Ok(cap_n_i), Ok(cap_d_i)) = (
             used_n.parse::<i128>(),
@@ -308,13 +370,104 @@ impl Verifier {
         Ok((computed_id, VerificationVerdict::Ok))
     }
 
+    /// Verifies a checkpoint event's structure and computes its event ID.
+    ///
+    /// Returns the computed event ID and a verdict.
+    pub fn verify_checkpoint(
+        &self,
+        event: &CheckpointEvent,
+    ) -> Result<(Digest, VerificationVerdict), String> {
+        let computed_id = crate::event_id::compute_event_id(event, &self.canonicalizer)
+            .map_err(|e| format!("event ID computation failed: {}", e))?;
+
+        if event.event_id != computed_id {
+            return Ok((computed_id, VerificationVerdict::Invalid));
+        }
+
+        if event.event_type != "checkpoint" {
+            return Ok((computed_id, VerificationVerdict::Invalid));
+        }
+        if event.event_version != "1" {
+            return Ok((computed_id, VerificationVerdict::Invalid));
+        }
+
+        // Schema: if merkle_root exists, window is required.
+        if event.merkle_root.is_some() && event.window.is_none() {
+            return Ok((computed_id, VerificationVerdict::Invalid));
+        }
+
+        // Basic coherence: if both bounds are present, start <= end.
+        if let Some(w) = &event.window {
+            if let (Some(start), Some(end)) = (w.start_height, w.end_height) {
+                if start > end {
+                    return Ok((computed_id, VerificationVerdict::Invalid));
+                }
+            }
+        }
+
+        Ok((computed_id, VerificationVerdict::Ok))
+    }
+
+    /// Verifies an attestation event's structure and computes its event ID.
+    ///
+    /// Returns the computed event ID and a verdict.
+    pub fn verify_attestation(
+        &self,
+        event: &AttestationEvent,
+    ) -> Result<(Digest, VerificationVerdict), String> {
+        let computed_id = crate::event_id::compute_event_id(event, &self.canonicalizer)
+            .map_err(|e| format!("event ID computation failed: {}", e))?;
+
+        if event.event_id != computed_id {
+            return Ok((computed_id, VerificationVerdict::Invalid));
+        }
+
+        if event.event_type != "attestation" {
+            return Ok((computed_id, VerificationVerdict::Invalid));
+        }
+        if event.event_version != "1" {
+            return Ok((computed_id, VerificationVerdict::Invalid));
+        }
+
+        // Schema: 1..=16 signatures.
+        if event.signatures.is_empty() || event.signatures.len() > 16 {
+            return Ok((computed_id, VerificationVerdict::Invalid));
+        }
+
+        for sig in &event.signatures {
+            if sig.alg.is_empty() || sig.alg.len() > 64 {
+                return Ok((computed_id, VerificationVerdict::Invalid));
+            }
+            if sig.key_id.is_empty() || sig.key_id.len() > 256 {
+                return Ok((computed_id, VerificationVerdict::Invalid));
+            }
+            // Base64url-no-pad: 16..=4096 chars, [A-Za-z0-9_-]+
+            if sig.sig.len() < 16 || sig.sig.len() > 4096 {
+                return Ok((computed_id, VerificationVerdict::Invalid));
+            }
+            if !sig
+                .sig
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+            {
+                return Ok((computed_id, VerificationVerdict::Invalid));
+            }
+        }
+
+        Ok((computed_id, VerificationVerdict::Ok))
+    }
+
     /// Verifies an execution event and its linkage to authorization.
     ///
     /// Requires the corresponding authorization event to be provided.
+    ///
+    /// If `conversion` is provided and `exec.pricing_snapshot_digest` is present,
+    /// validates that the digest matches the snapshot in the conversion context.
     pub fn verify_execution(
         &self,
         exec: &ExecutionEvent,
         auth: &AuthorizationEvent,
+        conversion: Option<&ConversionContext>,
     ) -> Result<(Digest, VerificationVerdict), String> {
         // Compute event ID
         let computed_id = crate::event_id::compute_event_id(exec, &self.canonicalizer)
@@ -349,10 +502,20 @@ impl Verifier {
             return Ok((computed_id, VerificationVerdict::Invalid));
         }
 
+        // Validate pricing snapshot digest if both are present
+        if let (Some(event_digest), Some(ctx)) = (exec.pricing_snapshot_digest.as_ref(), conversion) {
+            let computed_digest = ctx
+                .compute_snapshot_digest(&self.canonicalizer)
+                .map_err(|e| format!("failed to compute snapshot digest: {}", e))?;
+            if *event_digest != computed_digest {
+                return Ok((computed_id, VerificationVerdict::Invalid));
+            }
+        }
+
         // Verify bounds against usage
         let verdict = match &auth.authorization {
             crate::events::AuthorizationKind::Grant { bounds } => {
-                self.check_meter_bounds(&exec.meter_used, &bounds.meter_caps, exec, None)
+                self.check_meter_bounds(&exec.meter_used, &bounds.meter_caps, exec, conversion)
             }
             crate::events::AuthorizationKind::Action { action, .. } => {
                 // Verify tool name matches
@@ -361,7 +524,7 @@ impl Verifier {
                 }
                 // Check meter reservation if present
                 if let Some(reservation) = &action.meter_reservation {
-                    self.check_meter_bounds(&exec.meter_used, reservation, exec, None)
+                    self.check_meter_bounds(&exec.meter_used, reservation, exec, conversion)
                 } else {
                     VerificationVerdict::Ok
                 }
@@ -481,28 +644,16 @@ impl Verifier {
             let provider = exec.provider.as_ref()?;
 
             // Find matching price entry
-            let _price_entry = ctx
-                .snapshot
-                .token_prices
-                .iter()
-                .find(|p| {
-                    p.model_id == *model_id
-                        && p.provider == *provider
-                        && p.token_type == token_type
-                })?;
+            let _price_entry = ctx.snapshot.token_prices.iter().find(|p| {
+                p.model_id == *model_id && p.provider == *provider && p.token_type == token_type
+            })?;
 
-            let price_entry = ctx
-                .snapshot
-                .token_prices
-                .iter()
-                .find(|p| {
-                    p.model_id == *model_id
-                        && p.provider == *provider
-                        && p.token_type == token_type
-                })?;
+            let price_entry = ctx.snapshot.token_prices.iter().find(|p| {
+                p.model_id == *model_id && p.provider == *provider && p.token_type == token_type
+            })?;
 
             // Convert: tokens * price_per_token = usd
-            return self.mul_quantities(&meter.amount, &price_entry.price_per_token);
+            self.mul_quantities(&meter.amount, &price_entry.price_per_token)
         } else if meter.unit == "compute.seconds" || meter.unit == "storage.bytes" {
             // Look up unit rate
             let rates = if meter.unit == "compute.seconds" {
@@ -514,7 +665,7 @@ impl Verifier {
             let rate_entry = rates.iter().find(|r| r.unit == meter.unit)?;
 
             // Convert: units * price_per_unit = usd
-            return self.mul_quantities(&meter.amount, &rate_entry.price_per_unit);
+            self.mul_quantities(&meter.amount, &rate_entry.price_per_unit)
         } else {
             // Unknown unit type
             None
@@ -526,6 +677,7 @@ impl Verifier {
     /// - Int * Dec -> Dec
     /// - Dec * Int -> Dec
     /// - Dec * Dec -> Dec (scale sums)
+    ///
     /// Returns None for unsupported combos or overflow.
     fn mul_quantities(&self, a: &Quantity, b: &Quantity) -> Option<Quantity> {
         match (a, b) {
@@ -561,4 +713,3 @@ impl Verifier {
         }
     }
 }
-

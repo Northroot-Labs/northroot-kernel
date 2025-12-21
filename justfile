@@ -20,7 +20,7 @@ qa: fmt lint test golden
 # Coverage (requires cargo-llvm-cov)
 coverage:
     cargo llvm-cov --workspace --ignore-filename-regex '(/tests?/|/examples?/)' --lcov --output-path lcov.info
-    cargo llvm-cov --workspace --ignore-filename-regex '(/tests?/|/examples?/)' report --html --output-dir coverage
+    cargo llvm-cov --ignore-filename-regex '(/tests?/|/examples?/)' report --html --output-dir coverage
 
 # Security audits
 audit:

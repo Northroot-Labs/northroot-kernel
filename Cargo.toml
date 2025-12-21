@@ -1,4 +1,4 @@
 [workspace]
-members = ["crates/northroot-canonical", "crates/northroot-core"]
+members = ["crates/northroot-canonical", "crates/northroot-core", "crates/northroot-journal", "crates/northroot-store"]
 resolver = "2"
 

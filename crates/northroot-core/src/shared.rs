@@ -31,4 +31,3 @@ pub struct ResourceRef {
     /// Resource reference/selector.
     pub reference: String,
 }
-

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use northroot_canonical::{
-    canonicalizer::{CanonicalizationError, Canonicalizer},
+    canonicalizer::Canonicalizer,
     ContentRef, Digest, DigestAlg, HygieneReport, HygieneStatus, HygieneWarning, ProfileId,
     Quantity,
 };
@@ -57,10 +57,13 @@ fn hygiene_report_matches_expected_shape() {
 fn canonicalizer_produces_ordered_bytes() {
     let profile = ProfileId::parse("profileid000000001").unwrap();
     let canonicalizer = Canonicalizer::new(profile);
-    // Use string values instead of raw JSON numbers to avoid RawJsonNumber error
+    // Test with string values
     let value = json!({"b": "value1", "a": {"nested": "value2"}});
     let result = canonicalizer.canonicalize(&value).unwrap();
-    assert_eq!(result.bytes, br#"{"a":{"nested":"value2"},"b":"value1"}"#.to_vec());
+    assert_eq!(
+        result.bytes,
+        br#"{"a":{"nested":"value2"},"b":"value1"}"#.to_vec()
+    );
     assert_eq!(result.report.status, HygieneStatus::Ok);
 }
 
@@ -103,7 +106,7 @@ fn canonicalizer_validates_object_structure() {
     assert!(result.is_ok());
     let result = result.unwrap();
     assert_eq!(result.report.status, HygieneStatus::Ok);
-    
+
     // Note: Duplicate key detection is not performed here because
     // serde_json::Value::Object cannot have duplicates by design.
     // Duplicate detection should happen at the JSON parsing layer.
@@ -130,31 +133,22 @@ fn canonicalizer_validates_nested_structures() {
 }
 
 #[test]
-fn canonicalizer_rejects_raw_json_numbers() {
+fn canonicalizer_allows_raw_json_numbers() {
     let profile = ProfileId::parse("profileid000000001").unwrap();
     let canonicalizer = Canonicalizer::new(profile.clone());
 
-    // Raw JSON number in strict mode should be rejected
-    let value = json!({"amount": 42});
+    // Raw JSON numbers are allowed (schema validation handles quantity field restrictions)
+    let value = json!({"amount": 42, "scale": 2});
 
     let result = canonicalizer.canonicalize_with_report(&value);
-    assert!(result.is_err());
+    assert!(result.is_ok(), "Raw JSON numbers should be allowed");
 
-    let (err, report) = result.unwrap_err();
-    match err {
-        CanonicalizationError::RawJsonNumber(path) => {
-            assert!(path == "root.amount" || path == "amount");
-        }
-        _ => panic!("Expected RawJsonNumber error, got {:?}", err),
-    }
-
-    assert_eq!(report.status, HygieneStatus::Invalid);
-    assert!(report.warnings.iter().any(|w| w.as_ref() == "RawJsonNumber"));
-    assert_eq!(
-        report.metrics.get("raw_json_numbers"),
-        Some(&1u64),
-        "Expected raw_json_numbers metric to be 1"
-    );
+    let result = result.unwrap();
+    assert_eq!(result.report.status, HygieneStatus::Ok);
+    // Verify canonical bytes contain the numbers
+    let canonical_str = String::from_utf8(result.bytes.clone()).unwrap();
+    assert!(canonical_str.contains("42"));
+    assert!(canonical_str.contains("2"));
 }
 
 #[test]
@@ -173,19 +167,10 @@ fn canonicalizer_rejects_non_finite_numbers() {
     // by ensuring the code compiles and the error variant exists
     let value = json!({"value": 1.0e308}); // Large but finite
 
-    // This should pass (finite number), but we verify the error type exists
-    let _ = match canonicalizer.canonicalize(&value) {
-        Err(CanonicalizationError::NonFiniteNumber(_)) => {
-            // Expected for non-finite
-        }
-        Err(CanonicalizationError::RawJsonNumber(_)) => {
-            // Expected for raw JSON numbers in strict mode
-        }
-        Ok(_) => {
-            // Finite numbers pass (but raw JSON numbers are still rejected)
-        }
-        _ => {}
-    };
+    // Large but finite numbers should pass
+    let result = canonicalizer.canonicalize(&value);
+    assert!(result.is_ok(), "Finite numbers should be allowed");
+    assert_eq!(result.unwrap().report.status, HygieneStatus::Ok);
 }
 
 #[test]
@@ -199,11 +184,12 @@ fn canonicalizer_golden_bytes_simple_object() {
         "c": "hello"
     });
 
-    // Note: This will fail because of raw JSON numbers, but we test the ordering
-    // For a real golden test with quantities, we'd use Quantity types
-    let result = canonicalizer.canonicalize(&value);
-    // Expected to fail due to raw JSON numbers, but we can test the path
-    assert!(result.is_err());
+    // Raw JSON numbers are now allowed
+    let result = canonicalizer.canonicalize(&value).unwrap();
+    // Verify keys are lexicographically ordered: "a", "b", "c"
+    let canonical_str = String::from_utf8(result.bytes.clone()).unwrap();
+    assert!(canonical_str.starts_with(r#"{"a":1,"b":2,"c":"hello"}"#));
+    assert_eq!(result.report.status, HygieneStatus::Ok);
 }
 
 #[test]
@@ -211,16 +197,13 @@ fn canonicalizer_golden_bytes_with_quantities() {
     let profile = ProfileId::parse("profileid000000001").unwrap();
     let canonicalizer = Canonicalizer::new(profile);
 
-    // Use proper Quantity types (no raw JSON numbers)
-    // Note: The "s" field is a number, but it's part of a structured quantity object
-    // which should be allowed. However, our current validation rejects ALL raw numbers.
-    // For now, test with all string values to verify ordering works.
+    // Use proper Quantity types with scale as integer (per schema)
     let value = json!({
         "z": "last",
         "a": {
             "t": "dec",
             "m": "12345",
-            "s": "2"  // String to avoid raw number rejection
+            "s": 2  // Integer per schema definition
         },
         "b": {
             "t": "int",
@@ -230,11 +213,11 @@ fn canonicalizer_golden_bytes_with_quantities() {
 
     let result = canonicalizer.canonicalize(&value).unwrap();
     // Golden bytes: keys should be lexicographically ordered
-    // Note: With "s" as string, the order changes
     let canonical_str = String::from_utf8(result.bytes.clone()).unwrap();
     assert!(canonical_str.contains(r#""a":"#));
     assert!(canonical_str.contains(r#""b":"#));
     assert!(canonical_str.contains(r#""z":"#));
+    assert!(canonical_str.contains(r#""s":2"#)); // Verify scale is a number
     assert_eq!(result.report.status, HygieneStatus::Ok);
 }
 
@@ -270,18 +253,39 @@ fn canonicalizer_hygiene_report_serialization_stability() {
     let profile = ProfileId::parse("profileid000000001").unwrap();
     let canonicalizer = Canonicalizer::new(profile.clone());
 
-    // Test with raw JSON number to trigger error and get hygiene report
-    let value = json!({"amount": 42});
+    // Test with valid structure to get hygiene report
+    let value = json!({"amount": 42, "name": "test"});
 
-    let (_, report) = canonicalizer.canonicalize_with_report(&value).unwrap_err();
+    let result = canonicalizer.canonicalize_with_report(&value).unwrap();
+    let report = result.report;
 
     // Serialize and deserialize to ensure stability
     let serialized = serde_json::to_string(&report).unwrap();
     let deserialized: HygieneReport = serde_json::from_str(&serialized).unwrap();
 
-    assert_eq!(deserialized.status, HygieneStatus::Invalid);
-    assert!(deserialized.warnings.len() > 0);
-    assert!(deserialized.warnings.iter().any(|w| w.as_ref() == "RawJsonNumber"));
-    assert_eq!(deserialized.metrics.get("raw_json_numbers"), Some(&1u64));
+    assert_eq!(deserialized.status, HygieneStatus::Ok);
     assert_eq!(deserialized.profile_id, profile);
+}
+
+#[test]
+fn canonicalizer_can_canonicalize_quantity_with_scale() {
+    let profile = ProfileId::parse("profileid000000001").unwrap();
+    let canonicalizer = Canonicalizer::new(profile);
+
+    // Create a Quantity::Dec and serialize it to JSON
+    let quantity = Quantity::Dec {
+        m: "12345".into(),
+        s: 2,
+    };
+    let value = serde_json::to_value(&quantity).unwrap();
+
+    // Should canonicalize successfully (scale is a valid integer per schema)
+    let result = canonicalizer.canonicalize(&value).unwrap();
+    assert_eq!(result.report.status, HygieneStatus::Ok);
+
+    // Verify the canonical bytes contain the quantity structure
+    let canonical_str = String::from_utf8(result.bytes.clone()).unwrap();
+    assert!(canonical_str.contains(r#""t":"dec""#));
+    assert!(canonical_str.contains(r#""m":"12345""#));
+    assert!(canonical_str.contains(r#""s":2"#)); // Scale as integer
 }

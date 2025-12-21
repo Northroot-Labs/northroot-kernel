@@ -4,6 +4,7 @@ use serde_json::Value;
 use crate::hygiene::{HygieneReport, HygieneStatus, HygieneWarning};
 use crate::identifiers::ProfileId;
 use std::collections::BTreeMap;
+use std::fmt;
 
 /// Error returned when canonicalization fails.
 #[derive(thiserror::Error, Debug)]
@@ -18,9 +19,6 @@ pub enum CanonicalizationError {
     #[error("duplicate key detected at {0}")]
     #[allow(dead_code)]
     DuplicateKey(String),
-    /// Raw JSON number detected in strict mode.
-    #[error("raw JSON number detected at {0}")]
-    RawJsonNumber(String),
     /// Non-finite number (NaN/Infinity) detected.
     #[error("non-finite number detected at {0}")]
     NonFiniteNumber(String),
@@ -62,12 +60,15 @@ impl Path {
         segments.push(format!("[{}]", index));
         Self { segments }
     }
+}
 
-    fn to_string(&self) -> String {
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.segments.is_empty() {
-            return "root".to_string();
+            write!(f, "root")
+        } else {
+            write!(f, "{}", self.segments.join("."))
         }
-        self.segments.join(".")
     }
 }
 
@@ -102,8 +103,8 @@ impl Canonicalizer {
         }
 
         // Perform RFC 8785 canonicalization
-        let canonical = to_string(value)
-            .map_err(|err| CanonicalizationError::Other(err.to_string()))?;
+        let canonical =
+            to_string(value).map_err(|err| CanonicalizationError::Other(err.to_string()))?;
         let bytes = canonical.into_bytes();
 
         Ok(CanonicalizationResult { bytes, report })
@@ -128,25 +129,22 @@ impl Canonicalizer {
         }
 
         // Perform RFC 8785 canonicalization
-        let canonical = to_string(value)
-            .map_err(|err| {
-                let error_report = HygieneReport {
-                    status: HygieneStatus::Invalid,
-                    warnings: report.warnings.clone(),
-                    metrics: report.metrics.clone(),
-                    profile_id: report.profile_id.clone(),
-                };
-                (
-                    CanonicalizationError::Other(err.to_string()),
-                    error_report,
-                )
-            })?;
+        let canonical = to_string(value).map_err(|err| {
+            let error_report = HygieneReport {
+                status: HygieneStatus::Invalid,
+                warnings: report.warnings.clone(),
+                metrics: report.metrics.clone(),
+                profile_id: report.profile_id.clone(),
+            };
+            (CanonicalizationError::Other(err.to_string()), error_report)
+        })?;
         let bytes = canonical.into_bytes();
 
         Ok(CanonicalizationResult { bytes, report })
     }
 
     /// Validates the JSON value according to the canonical profile.
+    #[allow(clippy::only_used_in_recursion)]
     fn validate(
         &self,
         value: &Value,
@@ -180,19 +178,14 @@ impl Canonicalizer {
                             .entry("non_finite_numbers".to_string())
                             .and_modify(|count| *count += 1)
                             .or_insert(1);
-                        return Err(CanonicalizationError::NonFiniteNumber(path.to_string()));
+                        return Err(CanonicalizationError::NonFiniteNumber(format!("{}", path)));
                     }
                 }
-                // In strict mode, raw JSON numbers are forbidden for quantity fields
-                // For now, we emit a warning but allow it (schema-level validation should reject)
-                // This can be made stricter if needed
-                report.warnings.push(HygieneWarning::new("RawJsonNumber"));
-                report
-                    .metrics
-                    .entry("raw_json_numbers".to_string())
-                    .and_modify(|count| *count += 1)
-                    .or_insert(1);
-                Err(CanonicalizationError::RawJsonNumber(path.to_string()))
+                // Raw JSON numbers are allowed in canonical JSON.
+                // Schema-level validation should reject raw numbers in quantity value fields
+                // (e.g., quantity mantissas must be strings), but structural metadata fields
+                // like scale (s) in Dec quantities are valid as integers per schema.
+                Ok(())
             }
             Value::String(s) => {
                 // Validate UTF-8 (serde_json already ensures this, but we check anyway)
@@ -200,7 +193,7 @@ impl Canonicalizer {
                     report.status = HygieneStatus::Invalid;
                     return Err(CanonicalizationError::InvalidStructure(format!(
                         "{}: invalid UTF-8",
-                        path.to_string()
+                        path
                     )));
                 }
                 Ok(())

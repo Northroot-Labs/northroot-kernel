@@ -16,4 +16,3 @@ pub enum CoreError {
     #[error("canonicalization error: {0}")]
     Canonicalization(#[from] northroot_canonical::CanonicalizationError),
 }
-

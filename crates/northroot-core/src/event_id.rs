@@ -1,7 +1,7 @@
 use northroot_canonical::{Canonicalizer, Digest, DigestAlg};
-use sha2::{Digest as Sha2Digest, Sha256};
 use serde::Serialize;
 use serde_json::Value;
+use sha2::{Digest as Sha2Digest, Sha256};
 
 /// Domain separator for event ID computation: `b"northroot:event:v1\0"`.
 const EVENT_DOMAIN_SEPARATOR: &[u8] = b"northroot:event:v1\0";
@@ -16,8 +16,8 @@ pub fn compute_event_id<T: Serialize>(
     canonicalizer: &Canonicalizer,
 ) -> Result<Digest, EventIdError> {
     // Serialize to JSON Value first
-    let mut value: Value = serde_json::to_value(event)
-        .map_err(|e| EventIdError::Serialization(e.to_string()))?;
+    let mut value: Value =
+        serde_json::to_value(event).map_err(|e| EventIdError::Serialization(e.to_string()))?;
 
     // Remove event_id to avoid self-referential hashing
     if let Value::Object(map) = &mut value {
@@ -29,13 +29,13 @@ pub fn compute_event_id<T: Serialize>(
 
     // Canonicalize the JSON value
     let result = canonicalizer.canonicalize(&value)?;
-    
+
     // Hash: domain_separator || canonical_bytes
     let mut hasher = Sha256::new();
     hasher.update(EVENT_DOMAIN_SEPARATOR);
     hasher.update(&result.bytes);
     let hash_bytes = hasher.finalize();
-    
+
     use base64::Engine;
     let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(hash_bytes);
     Ok(Digest::new(DigestAlg::Sha256, b64)?)
@@ -75,4 +75,3 @@ fn stringify_numbers(value: &mut Value) {
         _ => {}
     }
 }
-
