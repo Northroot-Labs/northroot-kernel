@@ -14,6 +14,9 @@ pub enum StoreError {
     /// Payload exceeds 16 MiB limit.
     #[error("payload exceeds 16 MiB limit")]
     PayloadTooLarge,
+    /// Parse error during event parsing.
+    #[error("parse error: {0}")]
+    Parse(#[from] crate::typed::ParseError),
     /// Other error.
     #[error("{0}")]
     Other(String),
