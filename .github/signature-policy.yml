@@ -17,4 +17,4 @@ tier_b_paths:
 #   ssh-keygen -lf ~/.ssh/id_ed25519.pub
 allowed_human_signers:
   - name: "Sebastian"
-    fingerprint: "SHA256:s+Kwtl3q5NQMaeGBjvAA/vs/2NmJDBqCn6QL9Cmua/o" # Replace with your actual fingerprint
+    fingerprint: "SHA256:s+Kwtl3q5NQMaeGBjvAA/vs/2NmJDBqCn6QL9Cmua/o"
