@@ -87,7 +87,7 @@ pub fn run(
             .collect();
         println!("{}", serde_json::to_string_pretty(&json_results)?);
     } else {
-        println!("{:<44} {:<10} {}", "EVENT_ID", "VALID", "ERROR");
+        println!("{:<44} {:<10} ERROR", "EVENT_ID", "VALID");
         println!("{}", "-".repeat(80));
         for (id, valid, error_opt) in results {
             let error_str = error_opt.as_deref().unwrap_or("");

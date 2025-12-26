@@ -6,7 +6,7 @@ mod commands;
 mod output;
 mod path;
 
-use commands::{canonicalize, event_id, list, verify};
+use commands::{append, canonicalize, event_id, list, verify};
 
 #[derive(Parser)]
 #[command(name = "northroot")]
@@ -59,6 +59,19 @@ enum Commands {
         #[arg(long)]
         max_size: Option<u64>,
     },
+    /// Append an event to a journal
+    Append {
+        /// Path to journal file
+        journal: String,
+        /// Input JSON file (or stdin if not provided)
+        input: Option<String>,
+        /// Reject events with mismatched event_id (default: false)
+        #[arg(long)]
+        strict: bool,
+        /// Sync file to disk after append (default: false)
+        #[arg(long)]
+        sync: bool,
+    },
 }
 
 fn main() {
@@ -80,6 +93,12 @@ fn main() {
             max_events,
             max_size,
         } => verify::run(journal, strict, json, max_events, max_size),
+        Commands::Append {
+            journal,
+            input,
+            strict,
+            sync,
+        } => append::run(journal, input, strict, sync),
     };
 
     if let Err(e) = result {
