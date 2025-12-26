@@ -1,6 +1,6 @@
 [package]
 name = "northroot-cli"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 authors = ["Northroot Contributors"]
 license = "Apache-2.0 OR MIT"
@@ -13,12 +13,11 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 serde_json = "1.0"
-sha2 = "0.10"
-base64 = "0.22"
 thiserror = "1.0"
-northroot-store = { path = "../northroot-store" }
-northroot-core = { path = "../northroot-core" }
+chrono = "0.4"
 northroot-canonical = { path = "../northroot-canonical" }
+northroot-journal = { path = "../northroot-journal" }
+northroot-schemas = { path = "../northroot-schemas" }
 
 [features]
 default = []

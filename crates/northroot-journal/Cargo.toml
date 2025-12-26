@@ -1,6 +1,6 @@
 [package]
 name = "northroot-journal"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 authors = ["Northroot Contributors"]
 license = "Apache-2.0 OR MIT"
@@ -10,7 +10,6 @@ description = "Append-only journal format for canonical Northroot events"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
-northroot-core = { path = "../northroot-core" }
 northroot-canonical = { path = "../northroot-canonical" }
 
 [dev-dependencies]

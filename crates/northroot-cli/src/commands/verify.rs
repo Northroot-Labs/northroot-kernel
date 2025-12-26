@@ -2,8 +2,7 @@
 
 use crate::path;
 use northroot_canonical::{Canonicalizer, ProfileId};
-use northroot_core::{VerificationVerdict, Verifier};
-use northroot_store::{parse_event, JournalBackendReader, ReadMode, StoreReader, TypedEvent};
+use northroot_journal::{JournalReader, ReadMode, verify_event_id};
 use serde_json::json;
 
 pub fn run(
@@ -30,50 +29,20 @@ pub fn run(
         }
     }
 
-    let _reader = JournalBackendReader::open(&journal_path, ReadMode::Strict).map_err(|_e| {
-        let sanitized = path::sanitize_path_for_error(&journal_path);
-        format!("Failed to open journal file: {}", sanitized)
-    })?;
-
     let profile = ProfileId::parse("northroot-canonical-v1")
         .map_err(|e| format!("Invalid profile ID: {}", e))?;
     let canonicalizer = Canonicalizer::new(profile);
-    let verifier = Verifier::new(canonicalizer);
+
+    let mut reader = JournalReader::open(&journal_path, ReadMode::Strict).map_err(|e| {
+        let sanitized = path::sanitize_path_for_error(&journal_path);
+        format!("Failed to open journal file: {}: {}", sanitized, e)
+    })?;
 
     let mut all_ok = true;
     let mut results = Vec::new();
-
-    // First pass: build auth map only (streaming, O(n) auth events, not all events)
-    let mut auth_map =
-        std::collections::HashMap::<String, northroot_core::AuthorizationEvent>::new();
     let mut event_count: u64 = 0;
 
-    let mut temp_reader =
-        JournalBackendReader::open(&journal_path, ReadMode::Strict).map_err(|_e| {
-            let sanitized = path::sanitize_path_for_error(&journal_path);
-            format!("Failed to open journal file: {}", sanitized)
-        })?;
-    while let Some(event_json) = temp_reader.read_next()? {
-        // Check max_events limit
-        if let Some(max) = max_events {
-            if event_count >= max {
-                break;
-            }
-        }
-
-        if let Ok(TypedEvent::Authorization(auth)) = parse_event(&event_json) {
-            auth_map.insert(auth.event_id.b64.clone(), auth);
-        }
-        event_count += 1;
-    }
-
-    // Second pass: stream events, verify, and emit results immediately
-    let mut reader = JournalBackendReader::open(&journal_path, ReadMode::Strict).map_err(|_e| {
-        let sanitized = path::sanitize_path_for_error(&journal_path);
-        format!("Failed to open journal file: {}", sanitized)
-    })?;
-    event_count = 0;
-    while let Some(event_json) = reader.read_next()? {
+    while let Some(event) = reader.read_event()? {
         // Check max_events limit
         if let Some(max) = max_events {
             if event_count >= max {
@@ -81,97 +50,25 @@ pub fn run(
             }
         }
         event_count += 1;
-        let event_id_str = event_json
+
+        let event_id_str = event
             .get("event_id")
             .and_then(|v| v.get("b64"))
             .and_then(|v| v.as_str())
             .unwrap_or("?")
             .to_string();
-        let event_id_str_clone = event_id_str.clone();
 
-        match parse_event(&event_json)? {
-            TypedEvent::Authorization(auth) => match verifier.verify_authorization(&auth) {
-                Ok((_, verdict)) => {
-                    all_ok = all_ok && verdict == VerificationVerdict::Ok;
-                    results.push((event_id_str, "authorization".to_string(), verdict));
-                }
-                Err(e) => {
-                    all_ok = false;
-                    results.push((
-                        event_id_str,
-                        "authorization".to_string(),
-                        VerificationVerdict::Invalid,
-                    ));
-                    if !json_output {
-                        eprintln!(
-                            "Error verifying authorization {}: {}",
-                            event_id_str_clone, e
-                        );
-                    }
-                }
-            },
-            TypedEvent::Execution(exec) => {
-                // Find linked authorization
-                let auth = auth_map
-                    .get(&exec.auth_event_id.b64)
-                    .ok_or_else(|| format!("Authorization {} not found", exec.auth_event_id.b64))?;
-
-                match verifier.verify_execution(&exec, auth, None) {
-                    Ok((_, verdict)) => {
-                        all_ok = all_ok && verdict == VerificationVerdict::Ok;
-                        results.push((event_id_str, "execution".to_string(), verdict));
-                    }
-                    Err(e) => {
-                        all_ok = false;
-                        results.push((
-                            event_id_str,
-                            "execution".to_string(),
-                            VerificationVerdict::Invalid,
-                        ));
-                        if !json_output {
-                            eprintln!("Error verifying execution {}: {}", event_id_str_clone, e);
-                        }
-                    }
-                }
+        match verify_event_id(&event, &canonicalizer) {
+            Ok(true) => {
+                results.push((event_id_str.clone(), true, None));
             }
-            TypedEvent::Checkpoint(check) => match verifier.verify_checkpoint(&check) {
-                Ok((_, verdict)) => {
-                    all_ok = all_ok && verdict == VerificationVerdict::Ok;
-                    results.push((event_id_str, "checkpoint".to_string(), verdict));
-                }
-                Err(e) => {
-                    all_ok = false;
-                    results.push((
-                        event_id_str,
-                        "checkpoint".to_string(),
-                        VerificationVerdict::Invalid,
-                    ));
-                    if !json_output {
-                        eprintln!("Error verifying checkpoint {}: {}", event_id_str_clone, e);
-                    }
-                }
-            },
-            TypedEvent::Attestation(attest) => match verifier.verify_attestation(&attest) {
-                Ok((_, verdict)) => {
-                    all_ok = all_ok && verdict == VerificationVerdict::Ok;
-                    results.push((event_id_str, "attestation".to_string(), verdict));
-                }
-                Err(e) => {
-                    all_ok = false;
-                    results.push((
-                        event_id_str,
-                        "attestation".to_string(),
-                        VerificationVerdict::Invalid,
-                    ));
-                    if !json_output {
-                        eprintln!("Error verifying attestation {}: {}", event_id_str_clone, e);
-                    }
-                }
-            },
-            TypedEvent::Unknown(_) => {
-                if !json_output {
-                    eprintln!("Unknown event type: {}", event_id_str_clone);
-                }
+            Ok(false) => {
+                all_ok = false;
+                results.push((event_id_str.clone(), false, Some("event_id mismatch".to_string())));
+            }
+            Err(e) => {
+                all_ok = false;
+                results.push((event_id_str.clone(), false, Some(e.to_string())));
             }
         }
     }
@@ -180,23 +77,21 @@ pub fn run(
     if json_output {
         let json_results: Vec<_> = results
             .into_iter()
-            .map(|(id, ty, verdict)| {
+            .map(|(id, valid, error)| {
                 json!({
                     "event_id": id,
-                    "event_type": ty,
-                    "verdict": format!("{:?}", verdict)
+                    "valid": valid,
+                    "error": error
                 })
             })
             .collect();
         println!("{}", serde_json::to_string_pretty(&json_results)?);
     } else {
-        #[allow(clippy::print_literal)]
-        {
-            println!("{:<44} {:<15} {}", "EVENT_ID", "TYPE", "VERDICT");
-        }
-        println!("{}", "-".repeat(70));
-        for (id, ty, verdict) in results {
-            println!("{:<44} {:<15} {:?}", truncate(&id, 44), ty, verdict);
+        println!("{:<44} {:<10} {}", "EVENT_ID", "VALID", "ERROR");
+        println!("{}", "-".repeat(80));
+        for (id, valid, error_opt) in results {
+            let error_str = error_opt.as_deref().unwrap_or("");
+            println!("{:<44} {:<10} {}", truncate(&id, 44), if valid { "✓" } else { "✗" }, error_str);
         }
     }
 

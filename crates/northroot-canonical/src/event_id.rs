@@ -1,4 +1,9 @@
-use northroot_canonical::{Canonicalizer, Digest, DigestAlg};
+//! Event ID computation with domain-separated hashing.
+//!
+//! Event IDs are computed as: `sha256(domain_separator || canonical_bytes(event))`
+//! where the event_id field is excluded from the hash input.
+
+use crate::{Canonicalizer, Digest, DigestAlg};
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest as Sha2Digest, Sha256};
@@ -11,6 +16,7 @@ const EVENT_DOMAIN_SEPARATOR: &[u8] = b"northroot:event:v1\0";
 /// Formula: `sha256(domain_separator || canonical_bytes(event))`
 ///
 /// The event must be serializable and will be canonicalized before hashing.
+/// The `event_id` field (if present) is excluded from the hash input.
 pub fn compute_event_id<T: Serialize>(
     event: &T,
     canonicalizer: &Canonicalizer,
@@ -49,10 +55,10 @@ pub enum EventIdError {
     Serialization(String),
     /// Canonicalization failed.
     #[error("canonicalization failed: {0}")]
-    Canonicalization(#[from] northroot_canonical::CanonicalizationError),
+    Canonicalization(#[from] crate::CanonicalizationError),
     /// Digest construction failed.
     #[error("digest construction failed: {0}")]
-    Digest(#[from] northroot_canonical::ValidationError),
+    Digest(#[from] crate::ValidationError),
 }
 
 /// Recursively converts all JSON numbers into strings.
@@ -75,3 +81,16 @@ fn stringify_numbers(value: &mut Value) {
         _ => {}
     }
 }
+
+/// Verifies that a claimed event_id matches the computed event_id.
+///
+/// Returns `true` if the claimed ID matches the computed ID, `false` otherwise.
+pub fn verify_event_id<T: Serialize>(
+    event: &T,
+    claimed_id: &Digest,
+    canonicalizer: &Canonicalizer,
+) -> Result<bool, EventIdError> {
+    let computed_id = compute_event_id(event, canonicalizer)?;
+    Ok(claimed_id == &computed_id)
+}
+

@@ -4,7 +4,7 @@ Command-line interface for Northroot event storage and verification.
 
 ## Overview
 
-The `northroot` CLI provides a simple interface to interact with Northroot journal files. It supports listing, querying, verifying, and inspecting events stored in append-only journal format.
+The `northroot` CLI provides a simple interface to interact with Northroot journal files. It supports appending, listing, querying, verifying, and inspecting events stored in append-only journal format.
 
 ## Building
 
@@ -196,6 +196,66 @@ JSON object with:
 
 ---
 
+### `append` - Append an event to a journal
+
+Append a new event to a journal file. The event must be valid JSON conforming to the Northroot event schema.
+
+**Usage:**
+```bash
+northroot append <journal> [OPTIONS]
+```
+
+**Arguments:**
+- `journal` - Path to journal file (created if it doesn't exist)
+
+**Options:**
+- `--event <json>` - Event JSON as a string argument
+- `--stdin` - Read event JSON from stdin
+
+**Note:** Either `--event` or `--stdin` must be provided.
+
+**Examples:**
+```bash
+# Append event from command line argument
+northroot append events.nrj --event '{"event_type":"authorization","occurred_at":"2024-01-01T00:00:00Z","principal_id":"service:test","decision":"Allow","decision_code":"ALLOW","policy_id":"test-policy"}'
+
+# Append event from stdin
+echo '{"event_type":"execution","occurred_at":"2024-01-01T01:00:00Z","principal_id":"service:test","authorization_id":"auth1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","tool_name":"test.tool","outcome":"Success"}' | northroot append events.nrj --stdin
+
+# Append event from a file
+cat event.json | northroot append events.nrj --stdin
+
+# Create a new journal with first event
+northroot append new.nrj --event '{"event_type":"authorization",...}'
+```
+
+**Event format:**
+The event must be valid JSON matching one of the Northroot event schemas:
+- `authorization` - Authorization decision events
+- `execution` - Tool execution events
+- `attestation` - Attestation events
+- `checkpoint` - Checkpoint events
+
+**Validation:**
+- Event JSON is validated before appending
+- Journal integrity is maintained (append-only)
+- Event IDs are computed automatically from the canonicalized event
+
+**Exit codes:**
+- `0` - Event appended successfully
+- `1` - Error (invalid JSON, validation failure, I/O error)
+
+**Error messages:**
+- `Invalid journal path: ...` - Journal path validation failed
+- `Either --event or --stdin must be provided` - Missing input source
+- `Failed to read from stdin: ...` - Stdin read error
+- `Invalid JSON: ...` - JSON parsing error
+- `Failed to open journal for writing: ...` - Journal file I/O error
+- `Failed to append event: ...` - Event validation or append error
+- `Failed to finish writing: ...` - Journal finalization error
+
+---
+
 ### `gen` - Generate a test journal with deterministic events
 
 Generate a journal file with synthetic events for testing and validation.
@@ -301,6 +361,7 @@ northroot list --help
 northroot get --help
 northroot verify --help
 northroot inspect --help
+northroot append --help
 ```
 
 ---

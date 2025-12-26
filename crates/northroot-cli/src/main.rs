@@ -1,4 +1,4 @@
-//! Northroot CLI - Command-line interface for event storage and verification.
+//! Northroot CLI - Command-line interface for event verification and journal operations.
 
 use clap::{Parser, Subcommand};
 
@@ -6,13 +6,11 @@ mod commands;
 mod output;
 mod path;
 
-#[cfg(feature = "dev-tools")]
-use commands::gen;
-use commands::{append, get, inspect, list, verify};
+use commands::{canonicalize, checkpoint, list, verify};
 
 #[derive(Parser)]
 #[command(name = "northroot")]
-#[command(about = "Northroot event storage and verification CLI")]
+#[command(about = "Northroot event verification and journal operations CLI")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -24,18 +22,6 @@ enum Commands {
     List {
         /// Path to journal file
         journal: String,
-        /// Filter by event type
-        #[arg(long)]
-        r#type: Option<String>,
-        /// Filter by principal ID
-        #[arg(long)]
-        principal: Option<String>,
-        /// Filter events after this timestamp (RFC3339)
-        #[arg(long)]
-        after: Option<String>,
-        /// Filter events before this timestamp (RFC3339)
-        #[arg(long)]
-        before: Option<String>,
         /// Output as JSON
         #[arg(long)]
         json: bool,
@@ -46,14 +32,7 @@ enum Commands {
         #[arg(long)]
         max_size: Option<u64>,
     },
-    /// Get a single event by ID
-    Get {
-        /// Path to journal file
-        journal: String,
-        /// Event ID (base64url digest)
-        event_id: String,
-    },
-    /// Verify all events in a journal
+    /// Verify all event IDs in a journal
     Verify {
         /// Path to journal file
         journal: String,
@@ -70,55 +49,21 @@ enum Commands {
         #[arg(long)]
         max_size: Option<u64>,
     },
-    /// Inspect authorization and linked executions
-    Inspect {
+    /// Show canonical bytes for input JSON
+    Canonicalize {
+        /// Input JSON file (or stdin if not provided)
+        input: Option<String>,
+    },
+    /// Create a checkpoint event for a journal
+    Checkpoint {
         /// Path to journal file
         journal: String,
-        /// Authorization event ID
+        /// Principal ID
         #[arg(long)]
-        auth: String,
-    },
-    /// Append an event to a journal
-    Append {
-        /// Path to journal file
-        journal: String,
-        /// Event JSON (from argument)
+        principal: String,
+        /// Output checkpoint event as JSON
         #[arg(long)]
-        event: Option<String>,
-        /// Read event from stdin
-        #[arg(long)]
-        stdin: bool,
-    },
-    /// Generate a test journal with deterministic events (dev-tools feature only)
-    #[cfg(feature = "dev-tools")]
-    Gen {
-        /// Output journal path
-        #[arg(long, short)]
-        output: String,
-        /// Seed for deterministic ID generation (default: 0)
-        #[arg(long, default_value = "0")]
-        seed: u64,
-        /// Number of auth events
-        #[arg(long, default_value = "2")]
-        count_auth: u32,
-        /// Number of valid execution events (one per auth)
-        #[arg(long, default_value = "2")]
-        count_exec_ok: u32,
-        /// Number of deny/orphan execution events
-        #[arg(long, default_value = "0")]
-        count_exec_bad: u32,
-        /// Start timestamp (RFC3339)
-        #[arg(long, default_value = "2024-01-01T00:00:00Z")]
-        start_ts: String,
-        /// Timestamp step in milliseconds
-        #[arg(long, default_value = "1000")]
-        ts_step_ms: u64,
-        /// Include one malformed record for error testing
-        #[arg(long)]
-        with_bad: bool,
-        /// Overwrite existing file
-        #[arg(long)]
-        force: bool,
+        json: bool,
     },
 }
 
@@ -128,17 +73,10 @@ fn main() {
     let result = match cli.command {
         Commands::List {
             journal,
-            r#type,
-            principal,
-            after,
-            before,
             json,
             max_events,
             max_size,
-        } => list::run(
-            journal, r#type, principal, after, before, json, max_events, max_size,
-        ),
-        Commands::Get { journal, event_id } => get::run(journal, event_id),
+        } => list::run(journal, json, max_events, max_size),
         Commands::Verify {
             journal,
             strict,
@@ -146,34 +84,12 @@ fn main() {
             max_events,
             max_size,
         } => verify::run(journal, strict, json, max_events, max_size),
-        Commands::Inspect { journal, auth } => inspect::run(journal, auth),
-        Commands::Append {
+        Commands::Canonicalize { input } => canonicalize::run(input),
+        Commands::Checkpoint {
             journal,
-            event,
-            stdin,
-        } => append::run(journal, event, stdin),
-        #[cfg(feature = "dev-tools")]
-        Commands::Gen {
-            output,
-            seed,
-            count_auth,
-            count_exec_ok,
-            count_exec_bad,
-            start_ts,
-            ts_step_ms,
-            with_bad,
-            force,
-        } => gen::run(
-            output,
-            seed,
-            count_auth,
-            count_exec_ok,
-            count_exec_bad,
-            start_ts,
-            ts_step_ms,
-            with_bad,
-            force,
-        ),
+            principal,
+            json,
+        } => checkpoint::run(journal, principal, json),
     };
 
     if let Err(e) = result {

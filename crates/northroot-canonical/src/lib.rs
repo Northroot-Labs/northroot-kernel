@@ -10,6 +10,8 @@
 pub mod canonicalizer;
 /// Digest/identifier primitives.
 pub mod digest;
+/// Event ID computation with domain-separated hashing.
+pub mod event_id;
 /// Hygiene report types emitted during canonicalization.
 pub mod hygiene;
 /// Core identifiers and newtypes derived from canonical schema.
@@ -21,6 +23,7 @@ pub mod validation;
 
 pub use canonicalizer::{CanonicalizationError, CanonicalizationResult, Canonicalizer};
 pub use digest::{Digest, DigestAlg};
+pub use event_id::{compute_event_id, verify_event_id, EventIdError};
 pub use hygiene::{HygieneReport, HygieneStatus, HygieneWarning};
 pub use identifiers::{ContentRef, PrincipalId, ProfileId, Timestamp, ToolName};
 pub use quantities::Quantity;

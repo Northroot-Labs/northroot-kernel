@@ -48,17 +48,12 @@ while let Some(event) = reader.read_event()? {
 
 ```rust
 use northroot_canonical::{Canonicalizer, ProfileId};
-use northroot_core::Verifier;
-use northroot_journal::{verify_event, verify_event_id};
+use northroot_journal::verify_event_id;
 
 let canonicalizer = Canonicalizer::new(ProfileId::parse("northroot-canonical-v1")?);
-let verifier = Verifier::new(canonicalizer.clone());
 
 // Verify event_id matches computed digest
 let is_valid = verify_event_id(&event, &canonicalizer)?;
-
-// Full verification (authorization, checkpoint, attestation)
-let verdict = verify_event(&event, &verifier)?;
 ```
 
 ## Configuration
