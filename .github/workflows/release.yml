@@ -37,7 +37,7 @@ jobs:
         run: |
           cargo build --release --manifest-path apps/northroot/Cargo.toml --target ${{ matrix.target }}
           mkdir -p output/${{ matrix.binary_name }}
-          cp target/${{ matrix.target }}/release/northroot output/${{ matrix.binary_name }}/northroot
+          cp apps/northroot/target/${{ matrix.target }}/release/northroot output/${{ matrix.binary_name }}/northroot
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
