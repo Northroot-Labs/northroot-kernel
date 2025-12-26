@@ -39,7 +39,10 @@ pub fn format_table_row(event: &Value) -> String {
 /// Prints table header.
 #[allow(clippy::print_literal)]
 pub fn print_table_header() {
-    println!("{:<44} {:<15} {:<20} {}", "EVENT_ID", "TYPE", "OCCURRED_AT", "PRINCIPAL");
+    println!(
+        "{:<44} {:<15} {:<20} {}",
+        "EVENT_ID", "TYPE", "OCCURRED_AT", "PRINCIPAL"
+    );
     println!("{}", "-".repeat(100));
 }
 

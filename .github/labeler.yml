@@ -1,0 +1,37 @@
+# Auto-labeling configuration for PRs
+# Labels are suggested based on changed file paths
+
+contract:
+  # API surface changes that require contract review
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/developer/api-contract.md'
+          - 'schemas/**'
+          - 'crates/*/src/lib.rs'
+
+chore:
+  # Infrastructure, tooling, CI changes (no release needed)
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'justfile'
+          - 'deny.toml'
+          - 'rust-toolchain.toml'
+          - 'Dockerfile'
+          - '.dockerignore'
+          - '.devcontainer/**'
+          - 'scripts/**'
+          - 'docs/**/*.md'
+          - '!docs/developer/api-contract.md'
+
+style:
+  # Formatting, naming, whitespace (no release needed)
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.rs'
+      - all-match:
+          - any-glob-to-any-file:
+              - '**/*.rs'
+          - any-glob-to-any-file:
+              - '.rustfmt.toml'
+

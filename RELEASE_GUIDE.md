@@ -31,6 +31,66 @@ The CLI now provides the `append` command described below, so Python integration
 - `gen` command (dev-tools only) - generates test journals
 - `append` command (production) - adds events to journals safely from Python/other callers
 
+---
+
+## Automated Release Workflow
+
+Northroot uses a **label-driven CD workflow** that automatically versions, builds, and releases binaries when PRs are merged to `main`.
+
+### Label Taxonomy
+
+| Label | Semver Bump | Use Case | Release? |
+|-------|-------------|----------|----------|
+| `release:patch` | 0.1.X → 0.1.X+1 | Bug fix, security patch, doc fix | Yes |
+| `release:minor` | 0.X.0 → 0.X+1.0 | New feature, additive API | Yes |
+| `release:major` | X.0.0 → X+1.0.0 | Breaking API change, contract change | Yes |
+| `chore` | - | Deps, CI, tooling changes | No |
+| `style` | - | Formatting, naming, whitespace | No |
+| `contract` | flag | API surface changes (review flag) | No (must pair with release label) |
+
+### Release Flow
+
+1. **Open PR** with your changes
+2. **Apply label** (`release:patch`, `release:minor`, `release:major`, or `chore`/`style` for no release)
+3. **CI runs** (formatting, clippy, tests) - gates the PR
+4. **Merge to main**
+5. **If release label present:**
+   - Version bumped in all crate `Cargo.toml` files
+   - Git tag created (`v0.1.0`)
+   - Binaries built for Linux (x86_64) and macOS (ARM64)
+   - GitHub Release created with binaries and SHA256 checksums
+6. **If no release label:** No action (PR merged, no release)
+
+### Contract Change Handling
+
+The `contract` label flags API surface changes for review. It does **not** trigger a release alone but signals that the change requires extra scrutiny. Must be paired with a release label (`release:patch`, `release:minor`, or `release:major`) for actual release.
+
+**Paths that auto-suggest `contract` label:**
+- `docs/developer/api-contract.md`
+- `schemas/**`
+- `crates/*/src/lib.rs` (public API exports)
+
+### Manual Release (Fallback)
+
+If you need to release manually or the automated workflow fails:
+
+```bash
+# 1. Bump versions in all crates
+cargo set-version 0.1.1 --workspace
+
+# 2. Commit and tag
+git add crates/*/Cargo.toml
+git commit -m "chore: bump version to 0.1.1"
+git tag -a v0.1.1 -m "Release v0.1.1"
+git push origin main
+git push origin v0.1.1
+
+# 3. Build binaries (see "Building the Binary" below)
+# 4. Create GitHub Release via UI with binaries attached
+```
+
+---
+
 ## Building the Binary
 
 ### Prerequisites
@@ -228,6 +288,14 @@ def append_event(self, journal_path: Path, event: dict) -> bool:
 ----
 
 ## Release Process
+
+> **Note**: The release process is now **automated via GitHub Actions** when PRs with release labels are merged. The manual process below is a fallback for edge cases or manual releases.
+
+### Automated Release (Recommended)
+
+See "Automated Release Workflow" section above. Simply label your PR and merge.
+
+### Manual Release (Fallback)
 
 ### 1. Pre-Release Checklist
 
