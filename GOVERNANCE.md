@@ -14,7 +14,8 @@ Specifically, it provides:
 	•	Event identity computation
 	•	Append-only journal format (.nrj)
 	•	Offline, replayable verification primitives
-	•	Governance event schemas (checkpoint, attestation)
+
+Note: Governance event schemas (checkpoint, attestation) are provided as examples in `wip/governance/` but are not part of the core trust kernel. The core operates on untyped `EventJson` and does not require specific event schemas.
 
 It does not exist to:
 	•	Make decisions
@@ -176,11 +177,13 @@ Vendor capture is a violation of neutrality.
 9. Open Core Boundaries
 
 The following must remain open and inspectable:
-	•	Event schemas (governance events)
 	•	Canonicalization rules
 	•	Hashing rules
 	•	Event identity computation
 	•	Journal format specification
+	•	Canonical primitive schemas (quantities, identifiers, digests)
+
+Note: Event schemas (including governance events like checkpoint and attestation) are domain-specific and may be defined by extensions or consuming applications. Example schemas are provided in `wip/governance/` but are not part of the core.
 
 Domain-specific concerns (authorization → execution lifecycle, policy evaluation) are external to the core trust kernel.
 

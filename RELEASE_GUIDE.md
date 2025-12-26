@@ -1,6 +1,6 @@
 # Northroot CLI Release Guide
 
-**Status**: Ready for binary release (with append command recommendation)  
+**Status**: Ready for binary release (read-only operations)  
 **Audience**: Release engineers, Python integration developers  
 **Purpose**: Guide for building, testing, and releasing the `northroot` CLI binary for Python integration
 
@@ -10,26 +10,26 @@
 
 ### ✅ Ready for Release
 
-- **CLI builds successfully** (`northroot-cli` crate)
+- **CLI builds successfully** (`northroot` package in `apps/northroot/`)
 - **All tests pass** (unit + integration)
 - **Production commands available**:
+  - `canonicalize` - Show canonical bytes for input JSON
+  - `event-id` - Compute event_id for input JSON
   - `list` - List events in journal
-  - `get` - Get event by ID
-  - `verify` - Verify all events
-  - `inspect` - Inspect authorization chains
+  - `verify` - Verify all event IDs in journal
 - **Security hardening complete**:
   - Path validation and sanitization
   - Resource limits (`--max-events`, `--max-size`)
   - Error sanitization
   - Symlink rejection (optional)
 
-### ⚠️ Production Python Integration Notes
+### ⚠️ Future Commands (Not Yet Implemented)
 
-The CLI now provides the `append` command described below, so Python integrations can choose the CLI entry point for both read and write workflows. Existing guidance for using PyO3 bindings remains available if deeper embedding is preferred.
-
-**Current actionable items:**
-- `gen` command (dev-tools only) - generates test journals
-- `append` command (production) - adds events to journals safely from Python/other callers
+The following commands are planned but not yet implemented:
+- `get` - Get event by ID
+- `inspect` - Inspect authorization chains
+- `append` - Add events to journals (for Python/automation integration)
+- `gen` - Generate test journals (dev-tools only)
 
 ---
 
@@ -69,6 +69,7 @@ The `contract` label flags API surface changes for review. It does **not** trigg
 - `docs/developer/api-contract.md`
 - `schemas/**`
 - `crates/*/src/lib.rs` (public API exports)
+- `apps/northroot/src/main.rs` (CLI command interface)
 
 ### Manual Release (Fallback)
 
@@ -102,24 +103,26 @@ git push origin v0.1.1
 
 **Production build (recommended):**
 ```bash
+cd /path/to/northroot/apps/northroot
+cargo build --release
+```
+
+Or from workspace root:
+```bash
 cd /path/to/northroot
-cargo build --release --package northroot-cli
+cargo build --release --manifest-path apps/northroot/Cargo.toml
 ```
 
 **Output location:**
 ```
-target/release/northroot
+apps/northroot/target/release/northroot
 ```
 
 **Development build:**
 ```bash
-cargo build --package northroot-cli
-# Output: target/debug/northroot
-```
-
-**With dev-tools (includes `gen` command):**
-```bash
-cargo build --release --package northroot-cli --features dev-tools
+cd apps/northroot
+cargo build
+# Output: apps/northroot/target/debug/northroot
 ```
 
 ### Verify Build
@@ -130,7 +133,10 @@ cargo build --release --package northroot-cli --features dev-tools
 ./target/release/northroot --help
 
 # Run tests
-cargo test --package northroot-cli
+cd apps/northroot
+cargo test
+# Or from workspace root:
+# cargo test --manifest-path apps/northroot/Cargo.toml
 ```
 
 ---
@@ -148,22 +154,26 @@ cargo test --package northroot-cli
 
 **Linux (x86_64):**
 ```bash
-cargo build --release --package northroot-cli --target x86_64-unknown-linux-gnu
+cd apps/northroot
+cargo build --release --target x86_64-unknown-linux-gnu
 ```
 
 **macOS (Apple Silicon):**
 ```bash
-cargo build --release --package northroot-cli --target aarch64-apple-darwin
+cd apps/northroot
+cargo build --release --target aarch64-apple-darwin
 ```
 
 **macOS (Intel):**
 ```bash
-cargo build --release --package northroot-cli --target x86_64-apple-darwin
+cd apps/northroot
+cargo build --release --target x86_64-apple-darwin
 ```
 
 **Windows:**
 ```bash
-cargo build --release --package northroot-cli --target x86_64-pc-windows-msvc
+cd apps/northroot
+cargo build --release --target x86_64-pc-windows-msvc
 ```
 
 ### Release Package Structure
@@ -189,34 +199,35 @@ northroot-v0.1.0/
 ### Unit Tests
 
 ```bash
-cargo test --package northroot-cli
+cd apps/northroot
+cargo test
 ```
 
 **Expected output:**
 - All path validation tests pass
-- All integration tests pass (7 tests)
+- All integration tests pass
 - No warnings or errors
 
 ### Integration Tests
 
 ```bash
-# Run full test suite
+# Run full test suite (from workspace root)
 cargo test --all --all-features
 
-# Run specific integration test
-cargo test --package northroot-cli --test integration
+# Run journal integration tests
+cargo test --package northroot-journal --test integration
 ```
 
 ### Manual Testing Checklist
 
+- [ ] `northroot canonicalize <input>` - Produces canonical bytes
+- [ ] `northroot event-id <input>` - Computes event_id correctly
 - [ ] `northroot list <journal>` - Lists events correctly
-- [ ] `northroot get <journal> <event_id>` - Retrieves event
 - [ ] `northroot verify <journal>` - Verifies all events
-- [ ] `northroot inspect <journal> --auth <id>` - Inspects authorization
 - [ ] Path validation rejects traversal (`../`)
 - [ ] Path validation rejects symlinks (if enabled)
 - [ ] Resource limits work (`--max-events`, `--max-size`)
-- [ ] JSON output format is valid
+- [ ] JSON output format is valid (when `--json` flag used)
 - [ ] Error messages are sanitized (no absolute paths)
 
 ---
@@ -236,54 +247,45 @@ class NorthrootCLI:
     def __init__(self, binary_path: str = "northroot"):
         self.binary = binary_path
     
-    def list_events(self, journal_path: Path, filters: dict = None) -> list:
+    def canonicalize(self, input_json: str) -> str:
+        """Canonicalize JSON input."""
+        cmd = [self.binary, "canonicalize"]
+        result = subprocess.run(cmd, input=input_json, capture_output=True, check=True, text=True)
+        return result.stdout.strip()
+    
+    def compute_event_id(self, input_json: str) -> dict:
+        """Compute event_id for JSON input."""
+        cmd = [self.binary, "event-id"]
+        result = subprocess.run(cmd, input=input_json, capture_output=True, check=True, text=True)
+        return json.loads(result.stdout)
+    
+    def list_events(self, journal_path: Path, max_events: int = None, max_size: int = None) -> list:
         """List events in journal."""
         cmd = [self.binary, "list", str(journal_path), "--json"]
-        # Add filters if provided
+        if max_events:
+            cmd.extend(["--max-events", str(max_events)])
+        if max_size:
+            cmd.extend(["--max-size", str(max_size)])
         result = subprocess.run(cmd, capture_output=True, check=True, text=True)
         events = [json.loads(line) for line in result.stdout.strip().split('\n') if line]
         return events
     
-    def get_event(self, journal_path: Path, event_id: str) -> dict:
-        """Get event by ID."""
-        cmd = [self.binary, "get", str(journal_path), event_id]
-        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
-        return json.loads(result.stdout)
-    
-    def verify_journal(self, journal_path: Path, strict: bool = False) -> dict:
+    def verify_journal(self, journal_path: Path, strict: bool = False, max_events: int = None, max_size: int = None) -> dict:
         """Verify all events in journal."""
         cmd = [self.binary, "verify", str(journal_path), "--json"]
         if strict:
             cmd.append("--strict")
-        result = subprocess.run(cmd, capture_output=True, check=True, text=True)
-        return json.loads(result.stdout)
-    
-    def inspect_auth(self, journal_path: Path, auth_id: str) -> dict:
-        """Inspect authorization and linked executions."""
-        cmd = [self.binary, "inspect", str(journal_path), "--auth", auth_id]
+        if max_events:
+            cmd.extend(["--max-events", str(max_events)])
+        if max_size:
+            cmd.extend(["--max-size", str(max_size)])
         result = subprocess.run(cmd, capture_output=True, check=True, text=True)
         return json.loads(result.stdout)
 ```
 
-### Append Command
+### Future: Write Operations
 
-The new CLI `append` command is the recommended way to record events from Python integrations or automation scripts without needing direct FFI exposure.
-
-**Usage highlights:**
-- `northroot append <journal>` appends an event JSON provided via `--event` or stdin (`--stdin`).
-- Paths are validated and sanitized before any write happens, reusing `path::validate_journal_path`.
-- The command enforces payload limits through `northroot-store` and prints success/error diagnostics to stdout/stderr.
-
-**Python snippet:**
-```python
-def append_event(self, journal_path: Path, event: dict) -> bool:
-    event_json = json.dumps(event)
-    cmd = [self.binary, "append", str(journal_path), "--stdin"]
-    result = subprocess.run(cmd, input=event_json, capture_output=True, check=True, text=True)
-    return result.returncode == 0
-```
-
-**Alternative**: Use the PyO3 bindings if you need tighter integration.
+The `append` command is planned but not yet implemented. For now, write operations should use the Rust crates directly (`northroot-canonical` and `northroot-journal`) or PyO3 bindings if available.
 
 ----
 
@@ -317,22 +319,24 @@ VERSION="0.1.0"
 mkdir -p release/northroot-v${VERSION}
 cd release/northroot-v${VERSION}
 
-# Build for each platform
+# Build for each platform (from apps/northroot directory)
+cd apps/northroot
+
 # Linux
-cargo build --release --package northroot-cli --target x86_64-unknown-linux-gnu
-cp ../../target/x86_64-unknown-linux-gnu/release/northroot bin/northroot-linux-x86_64
+cargo build --release --target x86_64-unknown-linux-gnu
+cp ../../target/x86_64-unknown-linux-gnu/release/northroot ../../release/northroot-v${VERSION}/bin/northroot-linux-x86_64
 
 # macOS (Apple Silicon)
-cargo build --release --package northroot-cli --target aarch64-apple-darwin
-cp ../../target/aarch64-apple-darwin/release/northroot bin/northroot-macos-aarch64
+cargo build --release --target aarch64-apple-darwin
+cp ../../target/aarch64-apple-darwin/release/northroot ../../release/northroot-v${VERSION}/bin/northroot-macos-aarch64
 
 # macOS (Intel)
-cargo build --release --package northroot-cli --target x86_64-apple-darwin
-cp ../../target/x86_64-apple-darwin/release/northroot bin/northroot-macos-x86_64
+cargo build --release --target x86_64-apple-darwin
+cp ../../target/x86_64-apple-darwin/release/northroot ../../release/northroot-v${VERSION}/bin/northroot-macos-x86_64
 
 # Windows
-cargo build --release --package northroot-cli --target x86_64-pc-windows-msvc
-cp ../../target/x86_64-pc-windows-msvc/release/northroot.exe bin/northroot-windows-x86_64.exe
+cargo build --release --target x86_64-pc-windows-msvc
+cp ../../target/x86_64-pc-windows-msvc/release/northroot.exe ../../release/northroot-v${VERSION}/bin/northroot-windows-x86_64.exe
 ```
 
 ### 3. Create Release Package
@@ -342,7 +346,7 @@ cp ../../target/x86_64-pc-windows-msvc/release/northroot.exe bin/northroot-windo
 cp ../../README.md .
 cp ../../LICENSE-APACHE .
 cp ../../LICENSE-MIT .
-cp ../../crates/northroot-cli/README.md docs/CLI_README.md
+# Note: CLI README may not exist yet
 
 # Create tarball/zip
 tar -czf northroot-v${VERSION}.tar.gz northroot-v${VERSION}/
@@ -364,10 +368,10 @@ zip -r northroot-v${VERSION}.zip northroot-v${VERSION}/
 # Northroot CLI v0.1.0
 
 ## Features
+- Canonicalize JSON input (RFC 8785 + Northroot rules)
+- Compute event_id for JSON events
 - List events in journal files
-- Get events by ID
-- Verify all events in journal
-- Inspect authorization chains
+- Verify all event IDs in journal
 - Path validation and security hardening
 - Resource limits for sandboxed environments
 
@@ -416,7 +420,9 @@ end
 
 **Cargo Install (Rust users):**
 ```bash
-cargo install --path crates/northroot-cli
+cargo install --path apps/northroot
+# Or from workspace root:
+# cargo install --manifest-path apps/northroot/Cargo.toml
 ```
 
 ### Option 3: Docker
@@ -425,10 +431,10 @@ cargo install --path crates/northroot-cli
 FROM rust:1.91 as builder
 WORKDIR /app
 COPY . .
-RUN cargo build --release --package northroot-cli
+RUN cd apps/northroot && cargo build --release
 
 FROM debian:bookworm-slim
-COPY --from=builder /app/target/release/northroot /usr/local/bin/northroot
+COPY --from=builder /app/apps/northroot/target/release/northroot /usr/local/bin/northroot
 ENTRYPOINT ["northroot"]
 ```
 
@@ -444,11 +450,12 @@ ENTRYPOINT ["northroot"]
 
 ### Next Steps
 
-1. **Document append command usage and CLI script** for integrations
-2. **Create PyO3 bindings** as alternative integration method
-3. **Add version flag** (`northroot --version`)
-4. **Add progress indicators** for large journal operations
-5. **Add index support** for faster lookups in large journals
+1. **Implement `append` command** for write operations from Python/automation
+2. **Implement `get` command** for retrieving events by ID
+3. **Implement `inspect` command** for authorization chain inspection
+4. **Add version flag** (`northroot --version`)
+5. **Create PyO3 bindings** as alternative integration method
+6. **Add progress indicators** for large journal operations
 
 ---
 
@@ -481,10 +488,10 @@ ENTRYPOINT ["northroot"]
 
 ## References
 
-- [CLI README](crates/northroot-cli/README.md) - Full CLI documentation
+- [API Contract](docs/developer/api-contract.md) - Public API surface
 - [Journal Format](docs/reference/format.md) - Journal file specification
-- [Handoff Document](docs/operator/journal-cli-handoff.md) - Security context
 - [Core Invariants](CORE_INVARIANTS.md) - Design principles
+- [GOVERNANCE.md](GOVERNANCE.md) - Project constitution
 
 ---
 

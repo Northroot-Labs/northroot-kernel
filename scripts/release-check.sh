@@ -46,52 +46,64 @@ run_check "clippy lints" cargo clippy --all-targets --all-features -- -D warning
 run_check "unit and integration tests" cargo test --all --all-features || true
 
 # 4. CLI-specific tests
-run_check "CLI package tests" cargo test --package northroot-cli || true
+run_check "CLI package tests" cargo test --manifest-path apps/northroot/Cargo.toml || true
 
 # 5. Build release binary
 echo -n "Building release binary... "
-if cargo build --release --package northroot-cli > /tmp/northroot-release-check.log 2>&1; then
+if cargo build --release --manifest-path apps/northroot/Cargo.toml > /tmp/northroot-release-check.log 2>&1; then
     echo -e "${GREEN}✓${NC}"
-    if [ -f "target/release/northroot" ]; then
-        echo "  Binary location: target/release/northroot"
+    # Binary location depends on workspace structure
+    if [ -f "apps/northroot/target/release/northroot" ]; then
+        BINARY_PATH="apps/northroot/target/release/northroot"
+        echo "  Binary location: $BINARY_PATH"
+    elif [ -f "target/release/northroot" ]; then
+        BINARY_PATH="target/release/northroot"
+        echo "  Binary location: $BINARY_PATH"
+    else
+        echo -e "  ${RED}✗${NC} Binary not found at expected location"
+        check_failed=1
+        BINARY_PATH=""
+    fi
+    
+    if [ -n "$BINARY_PATH" ]; then
         # Test binary works
-        if ./target/release/northroot --help > /dev/null 2>&1; then
+        if "$BINARY_PATH" --help > /dev/null 2>&1; then
             echo -e "  ${GREEN}✓${NC} Binary executes correctly"
         else
             echo -e "  ${RED}✗${NC} Binary execution test failed"
             check_failed=1
         fi
-    else
-        echo -e "  ${RED}✗${NC} Binary not found at expected location"
-        check_failed=1
     fi
 else
     echo -e "${RED}✗${NC}"
     cat /tmp/northroot-release-check.log
     check_failed=1
+    BINARY_PATH=""
 fi
 
 # 6. Version check (if version flag exists)
-echo -n "Checking CLI version... "
-if ./target/release/northroot --version > /dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC}"
-    ./target/release/northroot --version
-else
-    echo -e "${YELLOW}⚠${NC} --version flag not available (optional)"
-fi
-
-# 7. Verify all commands are available
-echo ""
-echo "Verifying CLI commands:"
-commands=("list" "get" "verify" "inspect" "append")
-for cmd in "${commands[@]}"; do
-    if ./target/release/northroot "$cmd" --help > /dev/null 2>&1; then
-        echo -e "  ${GREEN}✓${NC} $cmd command available"
+if [ -n "$BINARY_PATH" ] && [ -f "$BINARY_PATH" ]; then
+    echo -n "Checking CLI version... "
+    if "$BINARY_PATH" --version > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC}"
+        "$BINARY_PATH" --version
     else
-        echo -e "  ${RED}✗${NC} $cmd command failed"
-        check_failed=1
+        echo -e "${YELLOW}⚠${NC} --version flag not available (optional)"
     fi
-done
+    
+    # 7. Verify all commands are available
+    echo ""
+    echo "Verifying CLI commands:"
+    commands=("canonicalize" "event-id" "list" "verify")
+    for cmd in "${commands[@]}"; do
+        if "$BINARY_PATH" "$cmd" --help > /dev/null 2>&1; then
+            echo -e "  ${GREEN}✓${NC} $cmd command available"
+        else
+            echo -e "  ${RED}✗${NC} $cmd command failed"
+            check_failed=1
+        fi
+    done
+fi
 
 # Summary
 echo ""
