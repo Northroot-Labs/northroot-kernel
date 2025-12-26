@@ -49,6 +49,7 @@ Changes that can alter correctness of proofs, receipts, invariants, or security 
 - `crates/northroot-core/src/verification.rs`
 - `crates/northroot-journal/src/verification.rs`
 - `.github/workflows/**`
+- `.github/signature-policy.yml` (self-protected: defines the policy)
 - `Cargo.lock`
 - `deny.toml`
 

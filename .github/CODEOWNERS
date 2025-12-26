@@ -7,6 +7,7 @@ crates/northroot-canonical/**                   @sebastianteacutter
 crates/northroot-core/src/verification.rs       @sebastianteacutter
 crates/northroot-journal/src/verification.rs    @sebastianteacutter
 .github/workflows/**                            @sebastianteacutter
+.github/signature-policy.yml                    @sebastianteacutter
 Cargo.lock                                      @sebastianteacutter
 deny.toml                                       @sebastianteacutter
 
