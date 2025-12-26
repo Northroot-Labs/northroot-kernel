@@ -211,7 +211,7 @@
           ]
         },
         {
-          "component": "Verification logic (northroot-core)",
+          "component": "Verification logic (northroot-canonical, northroot-journal)",
           "status": "keep",
           "reason": "Offline, deterministic verification",
           "security": "No network, no mutable state, pure functions"
@@ -223,10 +223,10 @@
           "security": "No side effects, bounded operations"
         },
         {
-          "component": "Store abstraction (northroot-store)",
+          "component": "Journal format (northroot-journal)",
           "status": "keep",
-          "reason": "Pluggable backends, journal is default",
-          "security": "Trait-based, no unsafe operations"
+          "reason": "Append-only, tamper-evident storage",
+          "security": "Immutable records, deterministic format"
         }
       ]
     },

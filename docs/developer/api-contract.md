@@ -1,14 +1,14 @@
 # Northroot API Contract
 
-Version: 1.0
-Status: Stable
+Version: 1.0  
+Status: Stable  
 Scope: Trust kernel API surface
 
 ---
 
 ## 1. Purpose
 
-This document defines the public API contract for Northroot trust kernel crates. It specifies the interfaces that applications and extensions depend on for canonicalization, event identity computation, and journal operations.
+This document provides an overview of the public API contract for Northroot trust kernel crates. For complete API reference with detailed signatures, examples, and cross-references, see the auto-generated [rustdoc documentation](https://docs.rs/northroot-canonical) and [rustdoc documentation](https://docs.rs/northroot-journal).
 
 The kernel provides:
 - **Canonicalization**: Deterministic JSON canonicalization (RFC 8785 + Northroot rules)
@@ -19,106 +19,51 @@ The kernel provides:
 
 ## 2. Crate Responsibilities
 
-| Crate | Responsibility |
-|-------|----------------|
-| `northroot-canonical` | Canonicalization, digests, quantities, identifiers, event ID computation |
-| `northroot-journal` | Append-only journal format (.nrj) |
+| Crate | Responsibility | Documentation |
+|-------|----------------|---------------|
+| `northroot-canonical` | Canonicalization, digests, quantities, identifiers, event ID computation | [API Docs](https://docs.rs/northroot-canonical) |
+| `northroot-journal` | Append-only journal format (.nrj) | [API Docs](https://docs.rs/northroot-journal) |
 
 ---
 
-## 3. Canonicalization API (`northroot-canonical`)
+## 3. Core APIs
 
-### 3.1 Canonicalizer
+### 3.1 Canonicalization (`northroot-canonical`)
 
-```rust
-pub struct Canonicalizer {
-    // ...
-}
+**Key Types:**
+- [`Canonicalizer`](https://docs.rs/northroot-canonical/latest/northroot_canonical/struct.Canonicalizer.html) - Produces deterministic canonical bytes
+- [`compute_event_id`](https://docs.rs/northroot-canonical/latest/northroot_canonical/fn.compute_event_id.html) - Computes content-derived event identifiers
+- [`verify_event_id`](https://docs.rs/northroot-canonical/latest/northroot_canonical/fn.verify_event_id.html) - Verifies event identity
 
-impl Canonicalizer {
-    pub fn new(profile: ProfileId) -> Self;
-    
-    pub fn canonicalize(&self, value: &Value) -> Result<CanonicalResult, CanonicalizationError>;
-}
-```
-
-### 3.2 Event ID Computation
-
-```rust
-pub fn compute_event_id<T: Serialize>(
-    event: &T,
-    canonicalizer: &Canonicalizer,
-) -> Result<Digest, EventIdError>;
-
-pub fn verify_event_id(
-    event: &Value,
-    canonicalizer: &Canonicalizer,
-) -> Result<bool, EventIdError>;
-```
-
-### 3.3 Primitive Types
-
+**Primitive Types:**
 - `Digest` - Content-addressed identifiers (alg + b64)
 - `Quantity` - Lossless numeric types (Dec, Int, Rat, F64)
 - `Timestamp` - RFC 3339 timestamps
 - `PrincipalId` - Actor identifiers
 - `ProfileId` - Canonicalization profile identifiers
 
----
+See the [rustdoc API reference](https://docs.rs/northroot-canonical) for complete type definitions and method signatures.
 
-## 4. Journal API (`northroot-journal`)
+### 3.2 Journal I/O (`northroot-journal`)
 
-### 4.1 Writer
+**Key Types:**
+- [`JournalWriter`](https://docs.rs/northroot-journal/latest/northroot_journal/struct.JournalWriter.html) - Writes events to journal files
+- [`JournalReader`](https://docs.rs/northroot-journal/latest/northroot_journal/struct.JournalReader.html) - Reads events from journal files
+- [`verify_event_id`](https://docs.rs/northroot-journal/latest/northroot_journal/fn.verify_event_id.html) - Verifies event identity in journal context
 
-```rust
-pub struct JournalWriter {
-    // ...
-}
-
-impl JournalWriter {
-    pub fn open<P: AsRef<Path>>(path: P, options: WriteOptions) -> Result<Self, JournalError>;
-    
-    pub fn append_event(&mut self, event: &EventJson) -> Result<(), JournalError>;
-    
-    pub fn finish(mut self) -> Result<(), JournalError>;
-}
-```
-
-### 4.2 Reader
-
-```rust
-pub struct JournalReader {
-    // ...
-}
-
-impl JournalReader {
-    pub fn open<P: AsRef<Path>>(path: P, mode: ReadMode) -> Result<Self, JournalError>;
-    
-    pub fn read_event(&mut self) -> Result<Option<EventJson>, JournalError>;
-}
-```
-
-### 4.3 Verification
-
-```rust
-pub fn verify_event_id(
-    event: &EventJson,
-    canonicalizer: &Canonicalizer,
-) -> Result<bool, JournalError>;
-```
-
-### 4.4 Types
-
+**Supporting Types:**
 - `EventJson` - Alias for `serde_json::Value` (untyped events)
 - `ReadMode` - `Strict` or `Permissive`
 - `WriteOptions` - Sync, create, append flags
 - `JournalError` - Error types for journal operations
 
+See the [rustdoc API reference](https://docs.rs/northroot-journal) for complete type definitions and method signatures.
+
 ---
 
-## 5. Usage Patterns
+## 4. Usage Patterns
 
-### 5.1 Creating and Writing Events
+### 4.1 Creating and Writing Events
 
 ```rust
 use northroot_canonical::{compute_event_id, Canonicalizer, ProfileId};
@@ -149,7 +94,7 @@ writer.append_event(&event)?;
 writer.finish()?;
 ```
 
-### 5.2 Reading and Verifying Events
+### 4.2 Reading and Verifying Events
 
 ```rust
 use northroot_canonical::{Canonicalizer, ProfileId};
@@ -161,6 +106,7 @@ let canonicalizer = Canonicalizer::new(profile);
 let mut reader = JournalReader::open("events.nrj", ReadMode::Strict)?;
 
 while let Some(event) = reader.read_event()? {
+    // Verify using journal's verify_event_id helper
     let is_valid = verify_event_id(&event, &canonicalizer)?;
     if !is_valid {
         eprintln!("Invalid event_id");
@@ -170,41 +116,36 @@ while let Some(event) = reader.read_event()? {
 
 ---
 
-## 6. Error Handling
+## 5. Error Handling
 
-### 6.1 Canonicalization Errors
+### 5.1 Error Types
 
-```rust
-pub enum CanonicalizationError {
-    // ...
-}
-```
+All error types are documented in the rustdoc API reference:
 
-### 6.2 Journal Errors
+- [`CanonicalizationError`](https://docs.rs/northroot-canonical/latest/northroot_canonical/enum.CanonicalizationError.html) - Canonicalization failures
+- [`EventIdError`](https://docs.rs/northroot-canonical/latest/northroot_canonical/enum.EventIdError.html) - Event ID computation failures
+- [`JournalError`](https://docs.rs/northroot-journal/latest/northroot_journal/enum.JournalError.html) - Journal I/O failures
 
-```rust
-pub enum JournalError {
-    Io(std::io::Error),
-    InvalidHeader(String),
-    InvalidJson(String),
-    // ...
-}
-```
+### 5.2 Error Handling Patterns
 
-### 6.3 Event ID Errors
+All errors implement `std::error::Error` and can be converted using `?`:
 
 ```rust
-pub enum EventIdError {
-    Serialization(String),
-    Canonicalization(CanonicalizationError),
-    Digest(ValidationError),
-    InvalidJson(String),
+use northroot_canonical::CanonicalizationError;
+use northroot_journal::JournalError;
+
+fn process_event() -> Result<(), Box<dyn std::error::Error>> {
+    // Errors propagate automatically
+    let canonicalizer = Canonicalizer::new(profile)?;
+    let mut writer = JournalWriter::open("events.nrj", WriteOptions::default())?;
+    writer.append_event(&event)?;
+    Ok(())
 }
 ```
 
 ---
 
-## 7. Invariants
+## 6. Invariants
 
 - **Determinism**: All operations produce identical results across platforms
 - **Offline**: No network dependencies
@@ -213,18 +154,18 @@ pub enum EventIdError {
 
 ---
 
-## 8. Extension Points
+## 7. Extension Points
 
 The kernel does not provide:
 - Typed event schemas (domain layers add these)
 - Domain-specific verification (extensions implement this)
 - Storage abstractions (extensions can layer on top)
 
-See [Extensions](../reference/extensions.md) for how to extend the kernel.
+See [Extensions](../reference/extensions.md) and [Extending Northroot](extending.md) for how to extend the kernel.
 
 ---
 
-## 9. Versioning
+## 8. Versioning
 
 - API changes that break existing consumers require a major version bump
 - New optional fields or additive changes are minor version bumps
@@ -232,11 +173,34 @@ See [Extensions](../reference/extensions.md) for how to extend the kernel.
 
 ---
 
+## 9. Generating Documentation Locally
+
+To generate and view rustdoc documentation locally:
+
+```bash
+# Generate docs for all crates
+cargo doc --workspace --no-deps --open
+
+# Generate docs for specific crate
+cargo doc --package northroot-canonical --open
+cargo doc --package northroot-journal --open
+```
+
+The generated documentation includes:
+- Complete API reference with all types and methods
+- Code examples from rustdoc comments
+- Cross-references between related types
+- Links to related documentation
+
+---
+
 ## 10. Summary
 
 The Northroot kernel API provides:
-1. **Canonicalization**: `Canonicalizer::canonicalize()`
-2. **Event Identity**: `compute_event_id()`, `verify_event_id()`
-3. **Journal I/O**: `JournalWriter`, `JournalReader`
+1. **Canonicalization**: [`Canonicalizer::canonicalize()`](https://docs.rs/northroot-canonical/latest/northroot_canonical/struct.Canonicalizer.html#method.canonicalize)
+2. **Event Identity**: [`compute_event_id()`](https://docs.rs/northroot-canonical/latest/northroot_canonical/fn.compute_event_id.html), [`verify_event_id()`](https://docs.rs/northroot-canonical/latest/northroot_canonical/fn.verify_event_id.html)
+3. **Journal I/O**: [`JournalWriter`](https://docs.rs/northroot-journal/latest/northroot_journal/struct.JournalWriter.html), [`JournalReader`](https://docs.rs/northroot-journal/latest/northroot_journal/struct.JournalReader.html)
 
 All operations are deterministic, offline-capable, and operate on untyped JSON.
+
+For complete API reference, see the [rustdoc documentation](https://docs.rs/northroot-canonical) and [rustdoc documentation](https://docs.rs/northroot-journal).

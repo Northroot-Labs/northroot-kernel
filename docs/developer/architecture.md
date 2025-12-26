@@ -84,7 +84,7 @@ Northroot is organized as a minimal trust kernel with two core crates:
 
 **Dependencies**: `northroot-canonical`, `northroot-journal`
 
-**Note**: This is a standalone application (not a workspace crate), built with path dependencies to the kernel crates.
+**Note**: This is a standalone application that uses path dependencies to the kernel crates.
 
 ---
 

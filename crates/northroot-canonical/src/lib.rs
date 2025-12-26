@@ -1,8 +1,54 @@
 //! Canonical data model primitives for Northroot events and receipts.
 //!
+//! This crate provides deterministic canonicalization, event identity computation, and
+//! lossless numeric types for the Northroot trust kernel.
+//!
+//! ## Overview
+//!
 //! These types mirror `schemas/canonical/v1/types.schema.json` and the
 //! canonicalization profile described in `docs/reference/canonicalization.md`.
 //! Every field that participates in hashing or verification lives in this crate.
+//!
+//! ## Quick Start
+//!
+//! ```rust
+//! use northroot_canonical::{Canonicalizer, ProfileId, compute_event_id};
+//! use serde_json::json;
+//!
+//! // Create a canonicalizer
+//! let profile = ProfileId::parse("northroot-canonical-v1")?;
+//! let canonicalizer = Canonicalizer::new(profile);
+//!
+//! // Canonicalize JSON
+//! let value = json!({"b": 2, "a": 1});
+//! let result = canonicalizer.canonicalize(&value)?;
+//! // result.bytes contains deterministic canonical bytes
+//!
+//! // Compute event ID
+//! let event = json!({
+//!     "event_type": "test",
+//!     "event_version": "1",
+//!     "occurred_at": "2024-01-01T00:00:00Z",
+//!     "principal_id": "service:example",
+//!     "canonical_profile_id": "northroot-canonical-v1"
+//! });
+//! let event_id = compute_event_id(&event, &canonicalizer)?;
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! ## Key Types
+//!
+//! - [`Canonicalizer`] - Produces deterministic canonical bytes from JSON
+//! - [`compute_event_id`] - Computes content-derived event identifiers
+//! - [`Quantity`] - Lossless numeric types (Dec, Int, Rat, F64)
+//! - [`Digest`] - Content-addressed identifiers
+//! - [`PrincipalId`], [`ProfileId`], [`Timestamp`] - Core identifier types
+//!
+//! ## See Also
+//!
+//! - [API Documentation](https://docs.rs/northroot-canonical) - Full API reference
+//! - [Canonicalization Reference](../../../docs/reference/canonicalization.md) - Detailed canonicalization rules
+//! - [Core Specification](../../../docs/reference/spec.md) - Protocol specification
 //!
 #![deny(missing_docs)]
 

@@ -49,3 +49,14 @@ jobs:
       - name: Run golden tests
         run: cargo test --package northroot-canonical --test golden
 
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build documentation
+        run: cargo doc --workspace --no-deps
+      - name: Run doctests
+        run: cargo test --workspace --doc
+

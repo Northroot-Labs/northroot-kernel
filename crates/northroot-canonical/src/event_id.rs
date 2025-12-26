@@ -17,6 +17,37 @@ const EVENT_DOMAIN_SEPARATOR: &[u8] = b"northroot:event:v1\0";
 ///
 /// The event must be serializable and will be canonicalized before hashing.
 /// The `event_id` field (if present) is excluded from the hash input.
+///
+/// # Example
+///
+/// ```rust
+/// use northroot_canonical::{compute_event_id, Canonicalizer, ProfileId};
+/// use serde_json::json;
+///
+/// let profile = ProfileId::parse("northroot-canonical-v1")?;
+/// let canonicalizer = Canonicalizer::new(profile);
+///
+/// let event = json!({
+///     "event_type": "test",
+///     "event_version": "1",
+///     "occurred_at": "2024-01-01T00:00:00Z",
+///     "principal_id": "service:example",
+///     "canonical_profile_id": "northroot-canonical-v1"
+/// });
+///
+/// let event_id = compute_event_id(&event, &canonicalizer)?;
+/// println!("Event ID: {}", event_id);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # Errors
+///
+/// Returns [`EventIdError`] if serialization or canonicalization fails.
+///
+/// # See Also
+///
+/// - [`verify_event_id`] - Verify a claimed event ID
+/// - [Event Model Documentation](../../../docs/reference/events.md) - Event structure
 pub fn compute_event_id<T: Serialize>(
     event: &T,
     canonicalizer: &Canonicalizer,
@@ -85,6 +116,33 @@ fn stringify_numbers(value: &mut Value) {
 /// Verifies that a claimed event_id matches the computed event_id.
 ///
 /// Returns `true` if the claimed ID matches the computed ID, `false` otherwise.
+///
+/// # Example
+///
+/// ```rust
+/// use northroot_canonical::{verify_event_id, compute_event_id, Canonicalizer, ProfileId, Digest};
+/// use serde_json::json;
+///
+/// let profile = ProfileId::parse("northroot-canonical-v1")?;
+/// let canonicalizer = Canonicalizer::new(profile);
+///
+/// let event = json!({
+///     "event_type": "test",
+///     "event_version": "1",
+///     "occurred_at": "2024-01-01T00:00:00Z",
+///     "principal_id": "service:example",
+///     "canonical_profile_id": "northroot-canonical-v1"
+/// });
+///
+/// let computed_id = compute_event_id(&event, &canonicalizer)?;
+/// let is_valid = verify_event_id(&event, &computed_id, &canonicalizer)?;
+/// assert!(is_valid);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # Errors
+///
+/// Returns [`EventIdError`] if computation fails.
 pub fn verify_event_id<T: Serialize>(
     event: &T,
     claimed_id: &Digest,

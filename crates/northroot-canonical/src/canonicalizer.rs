@@ -72,18 +72,81 @@ impl fmt::Display for Path {
     }
 }
 
-/// Canonicalizer that emits deterministic bytes.
+/// Canonicalizer that emits deterministic bytes according to RFC 8785 + Northroot rules.
+///
+/// The canonicalizer validates JSON structure, enforces hygiene rules, and produces
+/// deterministic UTF-8 bytes suitable for hashing and verification.
+///
+/// # Example
+///
+/// ```rust
+/// use northroot_canonical::{Canonicalizer, ProfileId};
+/// use serde_json::json;
+///
+/// let profile = ProfileId::parse("northroot-canonical-v1")?;
+/// let canonicalizer = Canonicalizer::new(profile);
+///
+/// let value = json!({"b": 2, "a": 1});
+/// let result = canonicalizer.canonicalize(&value)?;
+///
+/// // Bytes are deterministic: same input always produces same output
+/// assert_eq!(result.bytes, b"{\"a\":1,\"b\":2}");
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # See Also
+///
+/// - [`compute_event_id`](crate::compute_event_id) - Compute event IDs from canonical bytes
+/// - [Canonicalization Reference](../../../docs/reference/canonicalization.md) - Detailed rules
 pub struct Canonicalizer {
     profile: ProfileId,
 }
 
 impl Canonicalizer {
     /// Creates a new canonicalizer for the provided profile.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use northroot_canonical::{Canonicalizer, ProfileId};
+    ///
+    /// let profile = ProfileId::parse("northroot-canonical-v1")?;
+    /// let canonicalizer = Canonicalizer::new(profile);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn new(profile: ProfileId) -> Self {
         Self { profile }
     }
 
     /// Produces canonical bytes + hygiene report.
+    ///
+    /// This method validates the JSON structure, enforces hygiene rules, and
+    /// produces deterministic canonical bytes using RFC 8785 rules.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CanonicalizationError`] if:
+    /// - JSON structure is invalid
+    /// - Non-finite numbers are detected
+    /// - Other validation failures occur
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use northroot_canonical::{Canonicalizer, ProfileId};
+    /// use serde_json::json;
+    ///
+    /// let profile = ProfileId::parse("northroot-canonical-v1")?;
+    /// let canonicalizer = Canonicalizer::new(profile);
+    ///
+    /// let value = json!({"z": 3, "a": 1, "m": 2});
+    /// let result = canonicalizer.canonicalize(&value)?;
+    ///
+    /// // Keys are sorted lexicographically
+    /// assert_eq!(result.bytes, b"{\"a\":1,\"m\":2,\"z\":3}");
+    /// assert_eq!(result.report.status, northroot_canonical::HygieneStatus::Ok);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn canonicalize(
         &self,
         value: &Value,

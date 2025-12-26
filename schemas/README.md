@@ -152,6 +152,13 @@ requires a new schema version.
   - `northroot validate <file> --schema <...>`
   - `northroot inspect <file>` (digests + hygiene report)
 
+## Trust kernel schema reference
+
+- `schemas/canonical/v1/types.schema.json`  
+  Canonical primitives (quantities, digests, hygiene reports, etc.) bundled with the trust kernel so operators always have the authoritative definitions on hand.
+- `crates/northroot-schemas/schemas/`  
+  Governance event schemas (checkpoint, attestation) that depend on the canonical types but are kept outside the core to preserve the kernel's minimal surface.
+
 ## Schema validation and journal format
 
 The journal format stores events as JSON objects without schema validation during

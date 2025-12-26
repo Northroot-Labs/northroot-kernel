@@ -102,9 +102,21 @@ Log important events:
 Batch multiple events before flushing:
 
 ```rust
-let mut writer = JournalBackendWriter::create("events.nrj")?;
-for event in events {
-    writer.append(&event)?;
+use northroot_canonical::{compute_event_id, Canonicalizer, ProfileId};
+use northroot_journal::{JournalWriter, WriteOptions};
+use serde_json::json;
+
+let profile = ProfileId::parse("northroot-canonical-v1")?;
+let canonicalizer = Canonicalizer::new(profile);
+
+let mut writer = JournalWriter::open("events.nrj", WriteOptions::default())?;
+for event_data in events {
+    // Compute event_id for each event
+    let mut event = json!(event_data);
+    let event_id = compute_event_id(&event, &canonicalizer)?;
+    event["event_id"] = serde_json::to_value(&event_id)?;
+    
+    writer.append_event(&event)?;
 }
 writer.finish()?;  // Single flush at end
 ```

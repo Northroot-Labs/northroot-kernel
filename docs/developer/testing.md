@@ -41,11 +41,36 @@ Located in `tests/` directories at crate root.
 
 ```rust
 // tests/integration.rs
-use northroot_store::*;
+use northroot_canonical::{compute_event_id, Canonicalizer, ProfileId};
+use northroot_journal::{JournalWriter, JournalReader, WriteOptions, ReadMode};
+use serde_json::json;
 
 #[test]
 fn test_journal_roundtrip() {
-    // Integration test
+    let profile = ProfileId::parse("northroot-canonical-v1").unwrap();
+    let canonicalizer = Canonicalizer::new(profile);
+    
+    // Write event
+    let mut event = json!({
+        "event_type": "test",
+        "event_version": "1",
+        "occurred_at": "2024-01-01T00:00:00Z",
+        "principal_id": "service:test",
+        "canonical_profile_id": "northroot-canonical-v1"
+    });
+    
+    let event_id = compute_event_id(&event, &canonicalizer).unwrap();
+    event["event_id"] = serde_json::to_value(&event_id).unwrap();
+    
+    let mut writer = JournalWriter::open("test.nrj", WriteOptions::default()).unwrap();
+    writer.append_event(&event).unwrap();
+    writer.finish().unwrap();
+    
+    // Read event
+    let mut reader = JournalReader::open("test.nrj", ReadMode::Strict).unwrap();
+    let read_event = reader.read_event().unwrap().unwrap();
+    
+    assert_eq!(read_event["event_id"], event["event_id"]);
 }
 ```
 
@@ -85,35 +110,36 @@ For information on running tests, CI workflows, and the QA harness, see [QA Harn
 ### Example: Testing Event Verification
 
 ```rust
+use northroot_canonical::{compute_event_id, verify_event_id, Canonicalizer, Digest, ProfileId};
+use northroot_journal::{JournalWriter, WriteOptions, EventJson};
+
 #[test]
-fn test_verify_authorization() {
+fn test_verify_event_id() {
     // Arrange
     let profile = ProfileId::parse("northroot-canonical-v1").unwrap();
     let canonicalizer = Canonicalizer::new(profile);
-    let verifier = Verifier::new(canonicalizer);
-    let event = create_test_authorization_event();
+    let event = create_test_event();
     
     // Act
-    let (digest, verdict) = verifier.verify_authorization(&event).unwrap();
+    let computed_id = compute_event_id(&event, &canonicalizer).unwrap();
+    let is_valid = verify_event_id(&event, &computed_id, &canonicalizer).unwrap();
     
     // Assert
-    assert_eq!(verdict, VerificationVerdict::Ok);
-    assert_eq!(digest, event.event_id);
+    assert!(is_valid);
 }
-```
 
-### Example: Testing Error Cases
-
-```rust
 #[test]
 fn test_invalid_event_id() {
-    let event = create_event_with_invalid_id();
     let profile = ProfileId::parse("northroot-canonical-v1").unwrap();
     let canonicalizer = Canonicalizer::new(profile);
-    let verifier = Verifier::new(canonicalizer);
+    let event = create_test_event();
+    let wrong_id = Digest::new(
+        northroot_canonical::DigestAlg::Sha256,
+        "wrong_digest_value_here"
+    ).unwrap();
     
-    let result = verifier.verify_authorization(&event);
-    assert!(result.is_err());
+    let is_valid = verify_event_id(&event, &wrong_id, &canonicalizer).unwrap();
+    assert!(!is_valid);
 }
 ```
 

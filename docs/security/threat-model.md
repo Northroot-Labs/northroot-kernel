@@ -149,9 +149,9 @@ Essential for audit-grade guarantees:
 - **Journal format (northroot-journal):** Keep - Stable, tamper-evident, append-only format
 - **CLI read operations (list, get, verify, inspect):** Keep with fixes - Core audit operations
   - Required fixes: Add path validation, fix memory exhaustion in verify (streaming), add resource limits
-- **Verification logic (northroot-core):** Keep - Offline, deterministic verification
+- **Verification logic (northroot-canonical, northroot-journal):** Keep - Offline, deterministic verification
 - **Canonicalization (northroot-canonical):** Keep - Deterministic event identity
-- **Store abstraction (northroot-store):** Keep - Pluggable backends, journal is default
+- **Journal format (northroot-journal):** Keep - Append-only, tamper-evident storage
 
 ### CLI Contract
 

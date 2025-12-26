@@ -52,7 +52,7 @@ Runs daily at 2 AM UTC (or manually via `workflow_dispatch`):
 
 - Coverage report (HTML + LCOV artifacts)
 - Security audits (`cargo-deny` + `cargo-audit`)
-- Miri on critical crates (`northroot-core`, `northroot-canonical`)
+- Miri on critical crates (`northroot-canonical`, `northroot-journal`)
 - Fuzzing (time-boxed to 60s per target)
 
 **Expected runtime:** 15-30 minutes

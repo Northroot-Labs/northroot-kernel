@@ -17,6 +17,27 @@ pub enum ReadMode {
 }
 
 /// Journal reader for reading events from a journal file.
+///
+/// The reader supports two modes:
+/// - [`ReadMode::Strict`] - Truncated frames are errors
+/// - [`ReadMode::Permissive`] - Truncation is treated as end-of-file
+///
+/// # Example
+///
+/// ```rust
+/// use northroot_journal::{JournalReader, ReadMode};
+///
+/// let mut reader = JournalReader::open("events.nrj", ReadMode::Strict)?;
+/// while let Some(event) = reader.read_event()? {
+///     println!("Event: {}", event["event_id"]);
+/// }
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # See Also
+///
+/// - [`JournalWriter`](crate::JournalWriter) - Write events to journals
+/// - [Journal Format Reference](../../../docs/reference/format.md) - Format specification
 pub struct JournalReader {
     file: File,
     mode: ReadMode,
@@ -32,6 +53,25 @@ impl JournalReader {
 
 impl JournalReader {
     /// Opens a journal file for reading.
+    ///
+    /// The file header is validated and the reader is positioned at the first
+    /// record frame after the header.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use northroot_journal::{JournalReader, ReadMode};
+    ///
+    /// let reader = JournalReader::open("events.nrj", ReadMode::Strict)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JournalError`](crate::JournalError) if:
+    /// - File cannot be opened
+    /// - File header is invalid
+    /// - I/O error occurs
     pub fn open<P: AsRef<Path>>(path: P, mode: ReadMode) -> Result<Self, JournalError> {
         let mut file = File::open(path)?;
         let _header = Self::read_header(&mut file)?;
@@ -111,6 +151,26 @@ impl JournalReader {
     /// Reads the next event JSON from the journal.
     ///
     /// Skips unknown frame kinds and returns `Ok(None)` at end-of-file.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use northroot_journal::{JournalReader, ReadMode};
+    ///
+    /// let mut reader = JournalReader::open("events.nrj", ReadMode::Strict)?;
+    /// while let Some(event) = reader.read_event()? {
+    ///     println!("Event ID: {}", event["event_id"]);
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JournalError`](crate::JournalError) if:
+    /// - Frame structure is invalid
+    /// - JSON parsing fails
+    /// - Truncation detected (in strict mode)
+    /// - I/O error occurs
     pub fn read_event(&mut self) -> Result<Option<EventJson>, JournalError> {
         loop {
             match self.read_frame()? {

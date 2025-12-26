@@ -29,8 +29,8 @@ audit:
 
 # Miri (UB detection, nightly only)
 miri:
-    cargo +nightly miri test --package northroot-core
     cargo +nightly miri test --package northroot-canonical
+    cargo +nightly miri test --package northroot-journal
 
 # Fuzzing (requires cargo-fuzz)
 fuzz target:
@@ -39,6 +39,10 @@ fuzz target:
 # Documentation
 docs:
     cargo doc --workspace --no-deps
+
+# Documentation with doctests
+docs-test:
+    cargo test --workspace --doc
 
 # Full nightly suite (slow)
 nightly: fmt lint test golden docs coverage audit

@@ -20,7 +20,7 @@ cd northroot
 cargo build --release
 ```
 
-The CLI binary will be at `target/release/northroot`.
+The CLI binary will be at `apps/northroot/target/release/northroot`.
 
 ### Verify Installation
 
@@ -39,15 +39,31 @@ Northroot stores events in journal files (`.nrj` format). You can create a journ
 Events are typically created programmatically using the Northroot Rust crates:
 
 ```rust
-use northroot_store::JournalBackendWriter;
-use northroot_core::events::AuthorizationEvent;
+use northroot_canonical::{compute_event_id, Canonicalizer, ProfileId};
+use northroot_journal::{JournalWriter, WriteOptions};
+use serde_json::json;
 
-// Create a writer
-let mut writer = JournalBackendWriter::create("events.nrj")?;
+// Create canonicalizer
+let profile = ProfileId::parse("northroot-canonical-v1")?;
+let canonicalizer = Canonicalizer::new(profile);
 
-// Create and append an event
-let event = create_authorization_event(...);
-writer.append(&event)?;
+// Create event (as JSON)
+let mut event = json!({
+    "event_type": "test",
+    "event_version": "1",
+    "occurred_at": "2024-01-01T00:00:00Z",
+    "principal_id": "service:example",
+    "canonical_profile_id": "northroot-canonical-v1",
+    "data": "example payload"
+});
+
+// Compute event_id
+let event_id = compute_event_id(&event, &canonicalizer)?;
+event["event_id"] = serde_json::to_value(&event_id)?;
+
+// Write to journal
+let mut writer = JournalWriter::open("events.nrj", WriteOptions::default())?;
+writer.append_event(&event)?;
 writer.finish()?;
 ```
 
@@ -57,16 +73,6 @@ See [Integration Examples](integration-examples.md) for complete code samples.
 
 ```bash
 northroot list events.nrj
-```
-
-Filter by type:
-```bash
-northroot list events.nrj --type authorization
-```
-
-Filter by principal:
-```bash
-northroot list events.nrj --principal service:api
 ```
 
 ### Verifying Events
@@ -79,21 +85,11 @@ northroot verify events.nrj
 
 This checks:
 - Event identity (`event_id` matches canonical bytes)
-- Linkage consistency (executions reference valid authorizations)
-- Signature validity (for attestation events)
-
-### Getting a Specific Event
-
-```bash
-northroot get events.nrj <event_id>
-```
-
-Event IDs can be truncated if unique (first 5+ characters).
+- Journal format integrity
 
 ## Next Steps
 
-- [CLI Guide](../crates/northroot-cli/README.md) - Complete command reference
 - [Integration Examples](integration-examples.md) - Code samples for integration
+- [API Contract](../developer/api-contract.md) - Complete API reference
 - [Deployment Guide](../operator/deployment.md) - Production deployment
 - [Core Specification](../reference/spec.md) - Protocol details
-

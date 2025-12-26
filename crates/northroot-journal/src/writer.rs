@@ -29,6 +29,41 @@ impl Default for WriteOptions {
 }
 
 /// Journal writer for append-only event storage.
+///
+/// The writer appends events to a journal file (`.nrj` format) in a framed,
+/// append-only manner. Events are stored as JSON objects within record frames.
+///
+/// # Example
+///
+/// ```rust
+/// use northroot_canonical::{compute_event_id, Canonicalizer, ProfileId};
+/// use northroot_journal::{JournalWriter, WriteOptions};
+/// use serde_json::json;
+///
+/// let profile = ProfileId::parse("northroot-canonical-v1")?;
+/// let canonicalizer = Canonicalizer::new(profile);
+///
+/// let mut event = json!({
+///     "event_type": "test",
+///     "event_version": "1",
+///     "occurred_at": "2024-01-01T00:00:00Z",
+///     "principal_id": "service:example",
+///     "canonical_profile_id": "northroot-canonical-v1"
+/// });
+///
+/// let event_id = compute_event_id(&event, &canonicalizer)?;
+/// event["event_id"] = serde_json::to_value(&event_id)?;
+///
+/// let mut writer = JournalWriter::open("events.nrj", WriteOptions::default())?;
+/// writer.append_event(&event)?;
+/// writer.finish()?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # See Also
+///
+/// - [`JournalReader`](crate::JournalReader) - Read events from journals
+/// - [Journal Format Reference](../../../docs/reference/format.md) - Format specification
 pub struct JournalWriter {
     file: File,
     sync: bool,
@@ -37,6 +72,31 @@ pub struct JournalWriter {
 
 impl JournalWriter {
     /// Opens or creates a journal file for writing.
+    ///
+    /// If the file doesn't exist and `options.create` is `true`, a new journal
+    /// file is created with a header. If the file exists, it is opened for appending
+    /// (if `options.append` is `true`) or truncated (if `false`).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use northroot_journal::{JournalWriter, WriteOptions};
+    ///
+    /// let options = WriteOptions {
+    ///     sync: false,
+    ///     create: true,
+    ///     append: true,
+    /// };
+    /// let writer = JournalWriter::open("events.nrj", options)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JournalError`](crate::JournalError) if:
+    /// - File cannot be opened/created
+    /// - Existing file is not a valid journal
+    /// - File is not empty but too small to be valid
     pub fn open<P: AsRef<Path>>(path: P, options: WriteOptions) -> Result<Self, JournalError> {
         let file = OpenOptions::new()
             .create(options.create)
@@ -91,6 +151,35 @@ impl JournalWriter {
     }
 
     /// Appends an event JSON payload to the journal.
+    ///
+    /// The event is serialized to JSON and written as an `EventJson` frame.
+    /// The event should include an `event_id` field computed via [`compute_event_id`](northroot_canonical::compute_event_id).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use northroot_canonical::{compute_event_id, Canonicalizer, ProfileId};
+    /// use northroot_journal::{JournalWriter, WriteOptions};
+    /// use serde_json::json;
+    ///
+    /// let profile = ProfileId::parse("northroot-canonical-v1")?;
+    /// let canonicalizer = Canonicalizer::new(profile);
+    ///
+    /// let mut event = json!({"event_type": "test", "event_version": "1"});
+    /// let event_id = compute_event_id(&event, &canonicalizer)?;
+    /// event["event_id"] = serde_json::to_value(&event_id)?;
+    ///
+    /// let mut writer = JournalWriter::open("events.nrj", WriteOptions::default())?;
+    /// writer.append_event(&event)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JournalError`](crate::JournalError) if:
+    /// - Header not written
+    /// - JSON serialization fails
+    /// - I/O error occurs
     pub fn append_event(&mut self, event: &EventJson) -> Result<(), JournalError> {
         let json_bytes = serde_json::to_vec(event)?;
         self.append_raw(FrameKind::EventJson, &json_bytes)

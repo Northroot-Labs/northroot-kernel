@@ -59,10 +59,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: miri
-      - name: Run miri on northroot-core
-        run: cargo +nightly miri test --package northroot-core
       - name: Run miri on northroot-canonical
         run: cargo +nightly miri test --package northroot-canonical
+      - name: Run miri on northroot-journal
+        run: cargo +nightly miri test --package northroot-journal
       - name: Upload miri logs
         if: failure()
         uses: actions/upload-artifact@v4
