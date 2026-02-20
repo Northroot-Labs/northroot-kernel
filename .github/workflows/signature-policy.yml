@@ -123,13 +123,24 @@ jobs:
                     exit 1
                   fi
 
-                  # Verify tag signature and extract fingerprint
-                  # For SSH signatures, git verify-tag --raw outputs the key fingerprint
-                  VERIFY_OUTPUT=$(git verify-tag "$TAG_NAME" --raw 2>&1) || {
+                  # Configure allowedSignersFile so SSH signature verification can run in CI.
+                  # We still enforce allowlist via fingerprint below.
+                  : > allowed_signers_ci
+                  git config --local gpg.ssh.allowedSignersFile "$PWD/allowed_signers_ci"
+
+                  # Verify tag signature and extract fingerprint.
+                  # NOTE: verify-tag may return non-zero for trust/principal mismatch even when the
+                  # cryptographic signature is valid ("Good ... signature"). Capture output first.
+                  set +e
+                  VERIFY_OUTPUT=$(git verify-tag "$TAG_NAME" --raw 2>&1)
+                  VERIFY_EXIT=$?
+                  set -e
+
+                  if ! echo "$VERIFY_OUTPUT" | grep -q "Good \"git\" signature"; then
                     echo "::error::Tag signature verification failed for $TAG_NAME"
                     echo "$VERIFY_OUTPUT"
                     exit 1
-                  }
+                  fi
 
                   # Extract SSH key fingerprint from verify output
                   # Format: "key SHA256:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
