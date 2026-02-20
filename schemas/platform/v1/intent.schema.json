@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://northroot.dev/schemas/platform/v1/intent.schema.json",
+  "title": "Platform IntentSpec (v1)",
+  "description": "Contract of intent: a request to execute a bounded action under scope and budget. This schema is platform-level and is not part of the neutral trust kernel.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "intent_version",
+    "kind",
+    "idempotency_key",
+    "scope_ref",
+    "budget",
+    "inputs",
+    "expected_outputs"
+  ],
+  "properties": {
+    "intent_version": {
+      "description": "Intent schema version (string for forward compatibility).",
+      "type": "string",
+      "const": "1"
+    },
+    "kind": {
+      "description": "High-level intent kind (e.g. pipeline.run, audit.run, export.commit).",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9_.-]+$"
+    },
+    "idempotency_key": {
+      "$ref": "ids.schema.json#/$defs/IdempotencyKey"
+    },
+    "scope_ref": {
+      "description": "Digest/pointer to the scope definition used to authorize and bound this intent.",
+      "$ref": "ids.schema.json#/$defs/Digest"
+    },
+    "budget": {
+      "description": "Execution budget hints and hard limits.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wall_clock_seconds",
+        "per_step_timeout_seconds",
+        "max_steps"
+      ],
+      "properties": {
+        "wall_clock_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 604800
+        },
+        "per_step_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "max_steps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        }
+      }
+    },
+    "inputs": {
+      "description": "Input artifacts for the intent. Prefer ContentRef for file-like inputs.",
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 10000,
+      "items": {
+        "oneOf": [
+          { "$ref": "ids.schema.json#/$defs/ContentRef" },
+          {
+            "type": "object",
+            "description": "Structured parameters (non-blob). Kept intentionally loose for v1.",
+            "additionalProperties": true
+          }
+        ]
+      }
+    },
+    "expected_outputs": {
+      "description": "Declared outputs. These are expectations, not evidence. Evidence is recorded in receipts.",
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "media_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9!#$&^_.+-]+\\/[A-Za-z0-9!#$&^_.+-]+$"
+          },
+          "path_hint": {
+            "description": "Optional path hint. Not evidence; do not hash into receipts unless explicitly intended.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        }
+      }
+    },
+    "meta": {
+      "description": "Non-verifiable operational metadata. Must not be treated as evidence.",
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}
+

@@ -24,6 +24,7 @@ jobs:
                   python3 << 'EOF'
                   import yaml
                   import json
+                  import os
                   import sys
 
                   with open('.github/signature-policy.yml', 'r') as f:
@@ -32,12 +33,18 @@ jobs:
                   tier_b_paths = config.get('tier_b_paths', [])
                   signers = config.get('allowed_human_signers', [])
 
-                  # Output paths as JSON array for reliable parsing
-                  print(f"tier_b_paths={json.dumps(tier_b_paths)}")
-
-                  # Output signer fingerprints
+                  # Write step outputs via $GITHUB_OUTPUT (avoid quoting/syntax issues).
+                  tier_b_paths_json = json.dumps(tier_b_paths)
                   fingerprints = [s['fingerprint'] for s in signers if 'fingerprint' in s]
-                  print(f"allowed_fingerprints={' '.join(fingerprints)}")
+                  allowed_fingerprints = " ".join(fingerprints)
+
+                  out_path = os.environ.get("GITHUB_OUTPUT")
+                  if not out_path:
+                      raise RuntimeError("GITHUB_OUTPUT not set")
+
+                  with open(out_path, "a", encoding="utf-8") as out:
+                      out.write(f"tier_b_paths={tier_b_paths_json}\n")
+                      out.write(f"allowed_fingerprints={allowed_fingerprints}\n")
                   EOF
 
             - name: Get changed files
@@ -56,6 +63,8 @@ jobs:
 
             - name: Check if Tier B paths are touched
               id: tier_check
+              env:
+                  TIER_B_PATHS_JSON: ${{ steps.policy.outputs.tier_b_paths }}
               run: |
                   # Check if any changed file matches Tier B patterns
                   TOUCHED_TIER_B=false
@@ -63,11 +72,12 @@ jobs:
                   # Parse JSON array of paths from policy output
                   python3 << 'EOF'
                   import json
+                  import os
                   import sys
                   import re
 
                   # Read policy paths as JSON
-                  tier_b_paths_json = "${{ steps.policy.outputs.tier_b_paths }}"
+                  tier_b_paths_json = os.environ.get("TIER_B_PATHS_JSON", "[]")
                   tier_b_paths = json.loads(tier_b_paths_json)
 
                   # Read changed files
@@ -113,13 +123,24 @@ jobs:
                     exit 1
                   fi
 
-                  # Verify tag signature and extract fingerprint
-                  # For SSH signatures, git verify-tag --raw outputs the key fingerprint
-                  VERIFY_OUTPUT=$(git verify-tag "$TAG_NAME" --raw 2>&1) || {
+                  # Configure allowedSignersFile so SSH signature verification can run in CI.
+                  # We still enforce allowlist via fingerprint below.
+                  : > allowed_signers_ci
+                  git config --local gpg.ssh.allowedSignersFile "$PWD/allowed_signers_ci"
+
+                  # Verify tag signature and extract fingerprint.
+                  # NOTE: verify-tag may return non-zero for trust/principal mismatch even when the
+                  # cryptographic signature is valid ("Good ... signature"). Capture output first.
+                  set +e
+                  VERIFY_OUTPUT=$(git verify-tag "$TAG_NAME" --raw 2>&1)
+                  VERIFY_EXIT=$?
+                  set -e
+
+                  if ! echo "$VERIFY_OUTPUT" | grep -q "Good \"git\" signature"; then
                     echo "::error::Tag signature verification failed for $TAG_NAME"
                     echo "$VERIFY_OUTPUT"
                     exit 1
-                  }
+                  fi
 
                   # Extract SSH key fingerprint from verify output
                   # Format: "key SHA256:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"

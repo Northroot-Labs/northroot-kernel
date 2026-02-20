@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://northroot.dev/schemas/platform/v1/receipt.schema.json",
+  "title": "Platform Receipt Envelope (v1)",
+  "description": "Contract of execution: a verifiable receipt recorded as a Northroot event. This schema defines a minimal envelope; domain layers extend via additional properties.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "principal_id",
+    "canonical_profile_id"
+  ],
+  "properties": {
+    "event_id": {
+      "description": "Verifiable identity of this receipt (content-derived digest of the canonical envelope; excludes event_id field).",
+      "$ref": "ids.schema.json#/$defs/EventID"
+    },
+    "event_type": {
+      "description": "Receipt type. Suggested: intent.accepted, auth.decided, exec.performed, commit.applied, artifact.emitted.",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128
+    },
+    "event_version": {
+      "description": "Receipt type version (string for forward compatibility).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16
+    },
+    "occurred_at": {
+      "description": "RFC3339 timestamp when the recorded event occurred.",
+      "$ref": "../../canonical/v1/types.schema.json#/$defs/Timestamp"
+    },
+    "principal_id": {
+      "description": "Actor responsible for the event (human/service/agent).",
+      "$ref": "../../canonical/v1/types.schema.json#/$defs/PrincipalID"
+    },
+    "canonical_profile_id": {
+      "description": "Canonicalization profile used for hashing/verifying this receipt.",
+      "$ref": "../../canonical/v1/types.schema.json#/$defs/ProfileID"
+    },
+    "prev_event_id": {
+      "description": "Optional hash-chain pointer for continuity proofs within a journal.",
+      "$ref": "ids.schema.json#/$defs/EventID"
+    },
+    "intent_ref": {
+      "description": "Optional link back to an accepted intent (either by event_id of an IntentReceipt or by digest of a canonical intent document).",
+      "oneOf": [
+        { "$ref": "ids.schema.json#/$defs/EventID" },
+        { "$ref": "ids.schema.json#/$defs/Digest" }
+      ]
+    },
+    "inputs": {
+      "description": "Input content refs bound into this receipt (evidence).",
+      "type": "array",
+      "items": { "$ref": "ids.schema.json#/$defs/ContentRef" }
+    },
+    "outputs": {
+      "description": "Output content refs bound into this receipt (evidence).",
+      "type": "array",
+      "items": { "$ref": "ids.schema.json#/$defs/ContentRef" }
+    }
+  }
+}
+

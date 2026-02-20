@@ -18,3 +18,5 @@ tier_b_paths:
 allowed_human_signers:
   - name: "Sebastian"
     fingerprint: "SHA256:s+Kwtl3q5NQMaeGBjvAA/vs/2NmJDBqCn6QL9Cmua/o" # Replace with your actual fingerprint
+  - name: "Sebastian (current signing key)"
+    fingerprint: "SHA256:ta1orsHgfjSvAAsg01tprTZfrnUO0GFfMbY4ylIBE9s"
