@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://northroot.dev/schemas/platform/v1/ids.schema.json",
+  "title": "Northroot Platform ID Taxonomy (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {},
+  "$defs": {
+    "UUIDv4Orv7": {
+      "title": "UUID (v4 or v7)",
+      "description": "Occurrence identity for operational logs and mutable timelines. Not verifiable by itself; do not treat as evidence identity.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "RecordID": {
+      "title": "RecordID",
+      "description": "Operational log record identifier (occurrence identity).",
+      "$ref": "#/$defs/UUIDv4Orv7"
+    },
+    "IdempotencyKey": {
+      "title": "IdempotencyKey",
+      "description": "Caller-supplied key for dedupe of requests. Semantics are defined by the receiving system; treat as an opaque string.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "Digest": {
+      "title": "Digest",
+      "description": "Content-derived identifier computed from canonical bytes. Used for evidence identity and blob identity.",
+      "$ref": "../../canonical/v1/types.schema.json#/$defs/Digest"
+    },
+    "EventID": {
+      "title": "EventID",
+      "description": "Verifiable event identity (content-derived digest of the canonical event envelope, domain-separated).",
+      "$ref": "../../canonical/v1/types.schema.json#/$defs/EventID"
+    },
+    "BlobDigest": {
+      "title": "BlobDigest",
+      "description": "Digest of raw bytes for a blob (file, object, artifact).",
+      "$ref": "#/$defs/Digest"
+    },
+    "ContentRef": {
+      "title": "ContentRef",
+      "description": "Pointer to external bytes by digest; used to bind receipts to real artifacts without embedding bytes.",
+      "$ref": "../../canonical/v1/types.schema.json#/$defs/ContentRef"
+    }
+  }
+}
+

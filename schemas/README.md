@@ -7,6 +7,7 @@ The schemas are organized into **three layers**:
 1) **Canonical types** (foundational building blocks)  
 2) **Events** (protocol messages that are hashed, stored, and verified)  
 3) **Profiles** (optional constraint overlays for specific deployments or domains)
+4) **Platform** (org-level contracts that sit above the neutral kernel)
 
 The key rule:
 
@@ -72,6 +73,20 @@ reserved for future use when domain-specific constraint overlays are needed.
 Suggested layout (when implemented):
 - `schemas/profiles/v1/ai_cost.schema.json`
 - `schemas/profiles/v1/finance.schema.json`
+
+---
+
+### `schemas/platform/`
+**Purpose:** Org-level contracts that are not part of the neutral trust kernel but
+need stable, versioned schemas for cross-repo standardization (e.g., IntentSpec,
+Receipt envelope constraints, operational ID taxonomy).
+
+**Audience:** Runner/control-plane integrators and application developers.
+
+**Stability:** High. These are versioned and should evolve deliberately.
+
+**Note:** Kernel code remains schema-agnostic; these schemas are normative
+references and integration contracts.
 
 ---
 
