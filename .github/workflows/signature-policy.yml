@@ -25,6 +25,7 @@ jobs:
                   import yaml
                   import json
                   import sys
+                  import os
 
                   with open('.github/signature-policy.yml', 'r') as f:
                       config = yaml.safe_load(f)
@@ -32,12 +33,12 @@ jobs:
                   tier_b_paths = config.get('tier_b_paths', [])
                   signers = config.get('allowed_human_signers', [])
 
-                  # Output paths as JSON array for reliable parsing
-                  print(f"tier_b_paths={json.dumps(tier_b_paths)}")
-
-                  # Output signer fingerprints
-                  fingerprints = [s['fingerprint'] for s in signers if 'fingerprint' in s]
-                  print(f"allowed_fingerprints={' '.join(fingerprints)}")
+                  # Write outputs to GITHUB_OUTPUT file
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as output_file:
+                      output_file.write(f"tier_b_paths={json.dumps(tier_b_paths)}\n")
+                      
+                      fingerprints = [s['fingerprint'] for s in signers if 'fingerprint' in s]
+                      output_file.write(f"allowed_fingerprints={' '.join(fingerprints)}\n")
                   EOF
 
             - name: Get changed files
