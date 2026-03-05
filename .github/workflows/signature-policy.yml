@@ -67,9 +67,7 @@ jobs:
                   TIER_B_PATHS_JSON: ${{ steps.policy.outputs.tier_b_paths }}
               run: |
                   # Check if any changed file matches Tier B patterns
-                  TOUCHED_TIER_B=false
-
-                  # Parse JSON array of paths from policy output
+                  set +e  # Disable exit-on-error to capture Python exit code
                   python3 << 'EOF'
                   import json
                   import os
@@ -98,7 +96,10 @@ jobs:
                   sys.exit(1)  # No match
                   EOF
 
-                  if [ $? -eq 0 ]; then
+                  PYTHON_EXIT=$?
+                  set -e  # Re-enable exit-on-error
+
+                  if [ $PYTHON_EXIT -eq 0 ]; then
                     echo "tier_b_touched=true" >> $GITHUB_OUTPUT
                   else
                     echo "tier_b_touched=false" >> $GITHUB_OUTPUT
