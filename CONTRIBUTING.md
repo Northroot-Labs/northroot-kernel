@@ -74,7 +74,7 @@ This runs:
 `main` is protected (GitHub Enterprise, tier A):
 - PR required; no direct pushes.
 - 1 approval required.
-- Required status checks: `fmt`, `clippy`, `test`, `golden`.
+- Required status checks: `fmt`, `clippy`, `golden` (`test` runs on push only).
 - Force push and branch deletion blocked.
 
 ### Code Review Process
