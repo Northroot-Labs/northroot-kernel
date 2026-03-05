@@ -69,6 +69,14 @@ This runs:
 - **Tests**: All public APIs must have tests
 - **Documentation**: Public items must be documented
 
+### Branch Protection
+
+`main` is protected (GitHub Enterprise, tier A):
+- PR required; no direct pushes.
+- 1 approval required.
+- Required status checks: `fmt`, `clippy`, `test`, `golden`.
+- Force push and branch deletion blocked.
+
 ### Code Review Process
 
 1. Create a branch from `main`
