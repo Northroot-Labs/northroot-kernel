@@ -1,4 +1,4 @@
-# Northroot
+# Northroot Kernel
 
 Trust kernel for deterministic, audit-grade evidence recording.
 
@@ -19,6 +19,34 @@ Northroot provides a minimal trust kernel for recording verifiable events. It st
 - Evaluate policy or enforce constraints
 
 See [GOVERNANCE.md](GOVERNANCE.md) for the project's foundational principles.
+
+## Kernel Hardening Charter (v1)
+
+This batch freezes the kernel scope and success criteria before any cross-repo expansion.
+
+### Goals
+- Keep core primitives deterministic and offline-verifiable.
+- Standardize identity semantics for verifiable evidence.
+- Keep `.nrj` as a portable append-only audit container.
+- Publish minimal contracts that downstream repos can adopt without pulling orchestration into core.
+
+### Non-goals
+- No orchestration logic, workflow execution, or policy engines.
+- No model, runtime, or budget decisioning logic.
+- No domain-specific business semantics in core crates.
+
+### Batch acceptance checkpoints
+- `charter_frozen`: goals/non-goals and boundaries are explicit.
+- `id_vocab_locked`: `record_id`, `content_id`, `event_id` usage is documented and schema-backed.
+- `event_contract_v1`: minimal verifiable economic event contract is versioned.
+- `journal_contract_v1`: minimal `.nrj` contract is explicit and testable.
+- `golden_gates_green`: deterministic gates (fmt/clippy/golden/schema) are green.
+- `agent_role_partition_defined`: eval-bootstrap and implementer responsibilities are separated.
+
+### Contract-spine authority references
+- `repos/docs/internal/workspace/CONTRACT_SPINE_DECISION_REGISTER_V1.md`
+- `repos/docs/internal/workspace/CONTRACT_SPINE_CI_GATE_ALIGNMENT_V1.md`
+- `repos/docs/internal/product/NORTHROOT_KERNEL_AND_ID_SEMANTICS_DIRECTION_NOTE.md`
 
 ## Quick Start
 

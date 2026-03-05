@@ -33,6 +33,20 @@ The Northroot Journal (.nrj) stores verifiable events in an append-only, tamper-
      - `len` (4 bytes, little-endian payload length)
    - Payload: `len` bytes
 
+## 3.1 Minimal portable contract (v1)
+
+The following fields are normative for portable verification:
+
+- Header magic MUST equal `NRJ1`.
+- Header version MUST equal `0x0001`.
+- Header flags MUST equal `0`.
+- Frame reserved bytes MUST equal `0`.
+- `kind=0x01` payload MUST be UTF-8 JSON object.
+- Unknown `kind` values MUST be skipped, not interpreted.
+
+This contract is intentionally minimal so verifiers in Rust, Python, and Go can implement
+identical framing behavior without coupling to orchestration/runtime semantics.
+
 ## 4. Record kinds
 
 - `0x01` EventJson: UTF-8 JSON object representing a canonical Northroot event.
@@ -89,6 +103,11 @@ Readers must validate:
 3. Valid UTF-8 JSON for every EventJson record.
 4. Event identity (`event_id`) via canonicalization and hash computation.
 5. Optional hash-chain references (`prev_event_id`).
+
+Verification semantics are fail-closed:
+- malformed header/frame/payload => Invalid
+- missing required event identity fields => Invalid
+- hash mismatch after canonicalization => Invalid
 
 
 ## 9. What the format does NOT guarantee

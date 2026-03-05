@@ -144,3 +144,14 @@ The Northroot event model provides:
 - Primitives for domain-specific event types
 
 Everything else—policy interpretation, enforcement, domain semantics, typed schemas—layers on top of the verified history.
+
+---
+
+## 8. Platform profile reference (v1)
+
+For org-level convergence, Northroot-Labs maintains a minimal verifiable economic event profile:
+
+- `schemas/platform/v1/economic_event.schema.json`
+
+This profile is not part of the neutral kernel protocol. It is an integration contract that binds
+cost/budget evidence to verifiable event identity while preserving core neutrality and offline verification.

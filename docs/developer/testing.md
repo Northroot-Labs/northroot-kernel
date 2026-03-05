@@ -4,13 +4,21 @@ How to write tests, run the QA harness, and add golden tests.
 
 ## Quick Start
 
-Run all fast checks before pushing:
+Run all fast checks before opening a PR:
 
 ```bash
 just qa
 ```
 
-This runs: format check, clippy, tests, and golden tests.
+Recommended fast gate set: format check, clippy, schema parse checks, and golden tests.
+
+For kernel pull requests, keep gates cheap and deterministic:
+- `cargo fmt --all --check`
+- `cargo clippy --all-targets --all-features -- -D warnings`
+- `cargo test --package northroot-canonical --test golden`
+- JSON schema parse checks under `schemas/**/*.schema.json`
+
+Heavier jobs (full workspace tests, docs build, CLI tests) run on push and release hardening paths.
 
 ## Test Types
 

@@ -14,7 +14,7 @@
     },
     "RecordID": {
       "title": "RecordID",
-      "description": "Operational log record identifier (occurrence identity).",
+      "description": "Operational log record identifier (occurrence identity). Allowed for mutable timelines and retries. Forbidden as verifiable evidence identity.",
       "$ref": "#/$defs/UUIDv4Orv7"
     },
     "IdempotencyKey": {
@@ -29,9 +29,14 @@
       "description": "Content-derived identifier computed from canonical bytes. Used for evidence identity and blob identity.",
       "$ref": "../../canonical/v1/types.schema.json#/$defs/Digest"
     },
+    "ContentID": {
+      "title": "ContentID",
+      "description": "Canonical payload identity (content-derived digest). Use for immutable evidence payloads and canonical artifacts.",
+      "$ref": "#/$defs/Digest"
+    },
     "EventID": {
       "title": "EventID",
-      "description": "Verifiable event identity (content-derived digest of the canonical event envelope, domain-separated).",
+      "description": "Verifiable event identity (content-derived digest of the canonical event envelope, domain-separated). Only valid for Northroot verifiable events.",
       "$ref": "../../canonical/v1/types.schema.json#/$defs/EventID"
     },
     "BlobDigest": {

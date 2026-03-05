@@ -88,6 +88,11 @@ Receipt envelope constraints, operational ID taxonomy).
 **Note:** Kernel code remains schema-agnostic; these schemas are normative
 references and integration contracts.
 
+Current platform contracts:
+- `platform/v1/ids.schema.json` - ID taxonomy (`record_id`, `content_id`, `event_id`).
+- `platform/v1/receipt.schema.json` - minimal receipt envelope.
+- `platform/v1/economic_event.schema.json` - minimal verifiable economic event profile.
+
 ---
 
 ## How schemas relate to the wire format

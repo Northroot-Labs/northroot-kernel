@@ -21,13 +21,24 @@ Operational logs may reference receipts, but logs are not receipts.
 
 - Use for: JSONL log lines, retries, step attempts, progress updates.
 - Format: UUID (v4/v7).
+- Allowed: mutable operational timelines.
+- Forbidden: canonical evidence identity and offline verification keys.
 - Not verifiable by itself; do not treat as evidence identity.
+
+### content_id (canonical payload identity)
+
+- Use for: immutable payloads/artifacts where identity is derived from canonical bytes.
+- Format: digest (`alg`, `b64`) with domain-appropriate canonicalization.
+- Allowed: receipts, facts, canonical artifacts, dedupe keys for immutable bundles.
+- Forbidden: mutable in-progress log rows and retry counters.
 
 ### event_id (verifiable receipt identity)
 
 - Use for: Northroot verifiable events / receipts.
 - Format: content-derived digest over canonical bytes of the event envelope
   (domain-separated; excludes the `event_id` field to avoid self-reference).
+- Allowed: append-only verifiable events stored in `.nrj`.
+- Forbidden: plain UUIDs, mutable row IDs, or transport correlation IDs.
 - Offline-verifiable: a verifier recomputes the digest from canonicalization rules.
 
 ### digest / blob digest (raw bytes identity)

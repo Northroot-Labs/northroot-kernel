@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://northroot.dev/schemas/platform/v1/economic_event.schema.json",
+  "title": "Northroot Verifiable Economic Event (v1)",
+  "description": "Minimal verifiable economic event profile for portable, self-verifying bundles. Strict required core with additive evolution through optional fields and extensions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_id",
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "principal_id",
+    "canonical_profile_id",
+    "status",
+    "workspace_id",
+    "idempotency_key",
+    "inputs",
+    "outputs"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version for this contract. Breaking changes require a new major version."
+    },
+    "record_id": {
+      "$ref": "ids.schema.json#/$defs/RecordID",
+      "description": "Operational occurrence identity for ingestion timelines and replay bookkeeping."
+    },
+    "event_id": {
+      "$ref": "ids.schema.json#/$defs/EventID",
+      "description": "Verifiable identity computed from canonical event bytes (excluding event_id field)."
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "description": "Domain event classifier, for example job.started or job.succeeded."
+    },
+    "event_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "description": "Type-level version for event_type semantics."
+    },
+    "occurred_at": {
+      "$ref": "../../canonical/v1/types.schema.json#/$defs/Timestamp"
+    },
+    "principal_id": {
+      "$ref": "../../canonical/v1/types.schema.json#/$defs/PrincipalID"
+    },
+    "canonical_profile_id": {
+      "$ref": "../../canonical/v1/types.schema.json#/$defs/ProfileID"
+    },
+    "prev_event_id": {
+      "$ref": "ids.schema.json#/$defs/EventID",
+      "description": "Optional continuity link for append-only chains."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "failed", "blocked", "warning"],
+      "description": "Terminal or transitional outcome classification."
+    },
+    "workspace_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "idempotency_key": {
+      "$ref": "ids.schema.json#/$defs/IdempotencyKey"
+    },
+    "content_id": {
+      "$ref": "ids.schema.json#/$defs/ContentID",
+      "description": "Optional canonical payload digest when payload identity is tracked separately from event envelope identity."
+    },
+    "input_hash": {
+      "$ref": "ids.schema.json#/$defs/Digest"
+    },
+    "output_hash": {
+      "$ref": "ids.schema.json#/$defs/Digest"
+    },
+    "inputs": {
+      "type": "array",
+      "items": { "$ref": "ids.schema.json#/$defs/ContentRef" }
+    },
+    "outputs": {
+      "type": "array",
+      "items": { "$ref": "ids.schema.json#/$defs/ContentRef" }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "estimated_usd": { "type": "number", "minimum": 0 },
+        "actual_usd": { "type": "number", "minimum": 0 },
+        "tokens_used": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "budget_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policy_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "decision": { "type": "string", "enum": ["allow", "deny", "downroute"] },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Optional additive extension namespace. Unknown keys are allowed and must not alter required core field semantics.",
+      "additionalProperties": true
+    }
+  }
+}
