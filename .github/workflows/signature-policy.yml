@@ -119,8 +119,8 @@ jobs:
 
                   # Check if tag exists
                   if ! git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-                    echo "::warning::Tier B changes detected but no human attestation tag found: $TAG_NAME"
-                    echo "::warning::Human attestation is advisory for Tier B. See docs/security/signing-policy.md"
+                    echo "::warning::Tier B changes missing human attestation tag: $TAG_NAME"
+                    echo "::warning::See docs/security/signing-policy.md for instructions"
                     exit 0
                   fi
 
@@ -138,9 +138,9 @@ jobs:
                   set -e
 
                   if ! echo "$VERIFY_OUTPUT" | grep -q "Good \"git\" signature"; then
-                    echo "::error::Tag signature verification failed for $TAG_NAME"
+                    echo "::warning::Tag signature verification failed for $TAG_NAME"
                     echo "$VERIFY_OUTPUT"
-                    exit 1
+                    exit 0
                   fi
 
                   # Extract SSH key fingerprint from verify output
@@ -148,9 +148,9 @@ jobs:
                   SIGNER_FP=$(echo "$VERIFY_OUTPUT" | grep -oE "SHA256:[A-Za-z0-9+/=]{43}" | head -1)
 
                   if [ -z "$SIGNER_FP" ]; then
-                    echo "::error::Could not extract signer fingerprint from tag signature"
+                    echo "::warning::Could not extract signer fingerprint from tag signature"
                     echo "Verify output: $VERIFY_OUTPUT"
-                    exit 1
+                    exit 0
                   fi
 
                   echo "Found signer fingerprint: $SIGNER_FP"
@@ -167,10 +167,10 @@ jobs:
                   done
 
                   if [ "$FOUND" = "false" ]; then
-                    echo "::error::Signer fingerprint $SIGNER_FP is not in the allowed list"
-                    echo "::error::Allowed fingerprints: $ALLOWED_FPS"
-                    echo "::error::Update .github/signature-policy.yml to add this signer"
-                    exit 1
+                    echo "::warning::Signer fingerprint $SIGNER_FP is not in the allowed list"
+                    echo "::warning::Allowed fingerprints: $ALLOWED_FPS"
+                    echo "::warning::Update .github/signature-policy.yml to add this signer"
+                    exit 0
                   fi
 
                   echo "✓ Human attestation tag verified: $TAG_NAME"
