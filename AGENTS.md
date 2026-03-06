@@ -317,3 +317,30 @@ cargo clippy --all-targets --all-features --fix -- -D warnings
 
 When in doubt, check the actual codebase before making assumptions.
 
+---
+
+## Cursor Cloud specific instructions
+
+### Overview
+
+Northroot is a pure Rust project with **no external services** (no databases, no HTTP servers, no Docker). The workspace contains two library crates (`northroot-canonical`, `northroot-journal`) and a CLI binary (`apps/northroot/`) that is **outside** the Cargo workspace.
+
+### Quick commands
+
+| Task | Command |
+|---|---|
+| Full QA (fmt + lint + test + golden) | `just qa` |
+| Build workspace | `cargo build --workspace` |
+| Build CLI | `cargo build --release --manifest-path apps/northroot/Cargo.toml` |
+| Test CLI | `cd apps/northroot && cargo test` |
+| Doctests | `cargo test --workspace --doc` |
+
+See `AGENTS.md` above and the `justfile` for the full command set.
+
+### Gotchas
+
+- **`just` must be installed** — it is not a Cargo tool and not managed by `rust-toolchain.toml`. The update script installs it.
+- **CLI is outside the workspace** — `cargo test --all` does NOT include `apps/northroot/`. Always run `cd apps/northroot && cargo test` separately.
+- **Pre-commit hook** at `.git/hooks/pre-commit` runs `just qa` and blocks on failure. All checks must pass before committing.
+- **Rust 1.91.0** is pinned via `rust-toolchain.toml`; `rustup` auto-installs it on first `cargo` invocation.
+
